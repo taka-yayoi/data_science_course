@@ -31,12 +31,11 @@ from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 # 現在のユーザー名を取得
 username = spark.sql("SELECT current_user()").collect()[0][0]
+print(f"ユーザー: {username}")
 
-# 実験名の設定
-experiment_name = f"/Users/{username}/wine_quality_experiment"
-mlflow.set_experiment(experiment_name)
-
-print(f"実験名: {experiment_name}")
+# ノートブックエクスペリメントを使用(自動作成)
+# mlflow.start_run()を呼ぶと、このノートブックに紐づく実験が自動的に使われます
+print("MLflow実験: このノートブックに自動的に紐づきます")
 
 # COMMAND ----------
 
@@ -221,9 +220,8 @@ mlflow.autolog(disable=True)
 
 # COMMAND ----------
 
-# 実験のランを取得
-experiment = mlflow.get_experiment_by_name(experiment_name)
-runs_df = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
+# 実験のランを取得(ノートブックエクスペリメントから)
+runs_df = mlflow.search_runs()
 
 # 結果の表示
 display(runs_df[["run_id", "metrics.test_auc", "tags.mlflow.runName", "status"]])
@@ -274,9 +272,8 @@ for i, (pred, prob, actual) in enumerate(zip(new_predictions, new_probabilities,
 # COMMAND ----------
 
 # 実験へのリンクを表示
-print(f"MLflow実験ページ: 左サイドバーの「実験」から確認できます")
-print(f"実験名: {experiment_name}")
-print(f"実験ID: {experiment.experiment_id}")
+print("MLflow実験ページ: ノートブック右上の「実験」アイコンから確認できます")
+print("または、左サイドバーの「実験」からノートブック名で検索してください")
 
 # COMMAND ----------
 
