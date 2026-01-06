@@ -18,6 +18,7 @@
 
 import mlflow
 import mlflow.sklearn
+from mlflow.models import infer_signature
 
 # サーバーレス環境用: レジストリURIを明示的に設定
 mlflow.set_registry_uri("databricks-uc")
@@ -110,10 +111,14 @@ with mlflow.start_run(run_name="model_for_registry") as run:
     mlflow.log_metric("test_auc", auc)
     mlflow.log_param("model_type", "LogisticRegression")
     
+    # シグネチャの推論(Unity Catalog登録に必須)
+    signature = infer_signature(X_train, pipeline.predict(X_train))
+    
     # モデルの記録と登録
     mlflow.sklearn.log_model(
         pipeline,
         artifact_path="model",
+        signature=signature,
         registered_model_name=MODEL_NAME
     )
     
@@ -193,10 +198,14 @@ with mlflow.start_run(run_name="improved_model") as run:
     mlflow.log_metric("test_auc", auc_v2)
     mlflow.log_param("model_type", "LogisticRegression_v2")
     
+    # シグネチャの推論(Unity Catalog登録に必須)
+    signature_v2 = infer_signature(X_train, pipeline_v2.predict(X_train))
+    
     # 新しいバージョンとして登録
     mlflow.sklearn.log_model(
         pipeline_v2,
         artifact_path="model",
+        signature=signature_v2,
         registered_model_name=MODEL_NAME
     )
     
