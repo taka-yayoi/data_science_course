@@ -1,55 +1,42 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # デモ4: モデルレジストリの操作
-# MAGIC 
-# MAGIC このノートブックでは、Unity Catalogのモデルレジストリを使ってモデルを管理します。
-# MAGIC 
-# MAGIC ## 学習目標
-# MAGIC - モデルレジストリの概念を理解する
-# MAGIC - モデルの登録とバージョン管理を学ぶ
-# MAGIC - モデルのエイリアス(Champion/Challenger)を理解する
+# MAGIC # デモ4: Unity Catalogモデルレジストリ
+# MAGIC
+# MAGIC このノートブックでは、MLflowモデルをUnity Catalogに登録し、バージョン管理を行います。
+
+# COMMAND ----------
+
+import os
+import time
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from mlflow.models import infer_signature
+
+import mlflow
+import mlflow.sklearn
+from mlflow.tracking import MlflowClient
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. 環境設定
+# MAGIC ## 1. カタログとスキーマの設定
 
 # COMMAND ----------
 
-import mlflow
-import mlflow.sklearn
-from mlflow.models import infer_signature
-
-# サーバーレス環境用: レジストリURIを明示的に設定
-mlflow.set_registry_uri("databricks-uc")
-from mlflow.tracking import MlflowClient
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
-from sklearn.metrics import roc_auc_score
-
-# COMMAND ----------
-
-# Unity Catalogをモデルレジストリとして使用
-mlflow.set_registry_uri("databricks-uc")
-
-# 現在のユーザー名を取得
+# ユーザー名を取得してカタログ名に使用
 username = spark.sql("SELECT current_user()").collect()[0][0]
 clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
 
-# カタログとスキーマの設定(自前カタログを作成)
+# カタログとスキーマの設定
 CATALOG = f"ds_workshop_{clean_username}"
-SCHEMA = "default"
-
-# カタログとスキーマの作成
-spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
-
-# モデル名の設定
-MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_model"
+SCHEMA = "ml"
+MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_logreg"
+PRED_TABLE = f"{CATALOG}.{SCHEMA}.wine_predictions"
 
 print(f"カタログ: {CATALOG}")
 print(f"スキーマ: {SCHEMA}")
@@ -57,125 +44,132 @@ print(f"モデル名: {MODEL_NAME}")
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## 2. データとモデルの準備
+# カタログとスキーマの作成
+spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 
 # COMMAND ----------
 
-# Wine Qualityデータセットの読み込み
-wine_spark_df = spark.read.csv(
-    "/databricks-datasets/wine-quality/winequality-red.csv",
-    header=True,
-    inferSchema=True,
-    sep=";"
-)
+# MAGIC %md
+# MAGIC ## 2. データの準備
 
-# pandasに変換
-df = wine_spark_df.toPandas()
-df["label"] = (df["quality"] >= 6).astype(int)
+# COMMAND ----------
 
-feature_cols = [c for c in df.columns if c not in ["quality", "label"]]
+# UCI Wine Qualityデータセットを読み込み
+from sklearn.datasets import load_wine
+
+wine = load_wine()
+df = pd.DataFrame(wine.data, columns=wine.feature_names)
+df["target"] = wine.target
+
+# 二値分類に変換(クラス0 vs その他)
+df["target_binary"] = (df["target"] == 0).astype(int)
+
+print(f"データ形状: {df.shape}")
+print(f"ターゲット分布:\n{df['target_binary'].value_counts()}")
+
+# COMMAND ----------
+
+# 特徴量とターゲットの分離
+feature_cols = wine.feature_names
 X = df[feature_cols]
-y = df["label"]
+y = df["target_binary"]
 
+# 訓練/テスト分割
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-print("データ準備完了")
+print(f"訓練データ: {X_train.shape}")
+print(f"テストデータ: {X_test.shape}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. モデルの学習とレジストリへの登録
+# MAGIC ## 3. モデル学習とMLflowログ
 
 # COMMAND ----------
 
-# エクスペリメントの設定
-experiment_name = f"/Users/{username}/wine_quality_registry_demo"
-mlflow.set_experiment(experiment_name)
+# パイプラインの構築
+classifier = Pipeline([
+    ("scaler", StandardScaler()),
+    ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42))
+])
+
+# COMMAND ----------
+
+# MLflow設定
+mlflow.set_registry_uri("databricks-uc")
+client = MlflowClient()
 
 # モデル学習とログ
-with mlflow.start_run(run_name="model_for_registry") as run:
-    # パイプライン構築と学習
-    pipeline = Pipeline([
-        ("scaler", StandardScaler()),
-        ("classifier", LogisticRegression(C=1.0, max_iter=100, random_state=42))
-    ])
+with mlflow.start_run(run_name="UC-Wine-LogReg") as run:
+    # 学習
+    classifier.fit(X_train, y_train)
     
-    pipeline.fit(X_train, y_train)
+    # 予測と評価
+    pred = classifier.predict(X_test)
+    pred_proba = classifier.predict_proba(X_test)[:, 1]
     
-    # 評価
-    y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
-    auc = roc_auc_score(y_test, y_pred_proba)
+    acc = accuracy_score(y_test, pred)
+    f1 = f1_score(y_test, pred, average="weighted")
+    auc = roc_auc_score(y_test, pred_proba)
     
-    mlflow.log_metric("test_auc", auc)
-    mlflow.log_param("model_type", "LogisticRegression")
+    # パラメータとメトリクスをログ
+    mlflow.log_params({"model": "LogisticRegression", "class_weight": "balanced"})
+    mlflow.log_metrics({"ACC": acc, "F1_weighted": f1, "AUC": auc})
     
-    # シグネチャの推論(Unity Catalog登録に必須)
-    signature = infer_signature(X_train, pipeline.predict(X_train))
+    # シグネチャの推論
+    sig = infer_signature(X_train, classifier.predict(X_train))
     
     # モデルをログ
     mlflow.sklearn.log_model(
-        pipeline,
+        sk_model=classifier,
         artifact_path="model",
-        signature=signature
+        signature=sig,
+        input_example=X_train.head(2)
     )
     
     run_id = run.info.run_id
-    print(f"AUC: {auc:.4f}")
     print(f"Run ID: {run_id}")
+    print(f"ACC: {acc:.4f}, F1: {f1:.4f}, AUC: {auc:.4f}")
 
 # COMMAND ----------
 
-# レジストリに登録
+# MAGIC %md
+# MAGIC ## 4. モデルレジストリへの登録
+
+# COMMAND ----------
+
+# モデルをUnity Catalogに登録
 model_uri = f"runs:/{run_id}/model"
-mlflow.register_model(model_uri, MODEL_NAME)
-print(f"モデルを {MODEL_NAME} に登録しました")
+model_version = mlflow.register_model(model_uri=model_uri, name=MODEL_NAME)
+
+time.sleep(3)
+
+# Championエイリアスを設定
+client.set_registered_model_alias(name=MODEL_NAME, alias="Champion", version=model_version.version)
+
+print(f"✅ Registered to UC: {MODEL_NAME} v{model_version.version} (alias=Champion)")
+print(f"   ACC={acc:.3f}, F1={f1:.3f}, AUC={auc:.3f}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. モデルレジストリの確認
+# MAGIC ## 5. 登録モデルの確認
 
 # COMMAND ----------
 
-# MLflow Clientの初期化
-client = MlflowClient()
+# 登録されたモデルの情報を表示
+model_info = client.get_registered_model(MODEL_NAME)
+print(f"モデル名: {model_info.name}")
+print(f"作成日時: {model_info.creation_timestamp}")
 
-# 登録されたモデルの情報を取得
-try:
-    model_info = client.get_registered_model(MODEL_NAME)
-    print(f"モデル名: {model_info.name}")
-    print(f"説明: {model_info.description or '(未設定)'}")
-except Exception as e:
-    print(f"モデル情報の取得エラー: {e}")
-
-# COMMAND ----------
-
-# モデルバージョンの一覧
+# バージョン一覧
 versions = client.search_model_versions(f"name='{MODEL_NAME}'")
-
-print(f"\n登録されているバージョン数: {len(versions)}")
+print(f"\nバージョン数: {len(versions)}")
 for v in versions:
-    print(f"  バージョン {v.version}: 作成日時={v.creation_timestamp}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 5. モデルにエイリアスを設定
-
-# COMMAND ----------
-
-# 最新バージョンを取得
-latest_version = versions[0].version if versions else "1"
-
-# エイリアスの設定(Champion = 本番用)
-try:
-    client.set_registered_model_alias(MODEL_NAME, "Champion", latest_version)
-    print(f"バージョン {latest_version} に 'Champion' エイリアスを設定しました")
-except Exception as e:
-    print(f"エイリアス設定エラー: {e}")
+    print(f"  - Version {v.version}: {v.aliases}")
 
 # COMMAND ----------
 
@@ -184,127 +178,121 @@ except Exception as e:
 
 # COMMAND ----------
 
-# 異なるパラメータで新しいモデルを学習
-with mlflow.start_run(run_name="improved_model") as run:
-    # より強い正則化のモデル
-    pipeline_v2 = Pipeline([
-        ("scaler", StandardScaler()),
-        ("classifier", LogisticRegression(
-            C=0.5,
-            max_iter=200,
-            solver="lbfgs",
-            random_state=42
-        ))
-    ])
+# より強い正則化のモデル
+classifier_v2 = Pipeline([
+    ("scaler", StandardScaler()),
+    ("model", LogisticRegression(
+        C=0.5,
+        max_iter=2000,
+        solver="lbfgs",
+        class_weight="balanced",
+        random_state=42
+    ))
+])
+
+# 学習とログ
+with mlflow.start_run(run_name="UC-Wine-LogReg-v2") as run_v2:
+    classifier_v2.fit(X_train, y_train)
     
-    pipeline_v2.fit(X_train, y_train)
+    pred_v2 = classifier_v2.predict(X_test)
+    pred_proba_v2 = classifier_v2.predict_proba(X_test)[:, 1]
     
-    # 評価
-    y_pred_proba_v2 = pipeline_v2.predict_proba(X_test)[:, 1]
-    auc_v2 = roc_auc_score(y_test, y_pred_proba_v2)
+    acc_v2 = accuracy_score(y_test, pred_v2)
+    f1_v2 = f1_score(y_test, pred_v2, average="weighted")
+    auc_v2 = roc_auc_score(y_test, pred_proba_v2)
     
-    mlflow.log_metric("test_auc", auc_v2)
-    mlflow.log_param("model_type", "LogisticRegression_v2")
+    mlflow.log_params({"model": "LogisticRegression_v2", "C": 0.5, "class_weight": "balanced"})
+    mlflow.log_metrics({"ACC": acc_v2, "F1_weighted": f1_v2, "AUC": auc_v2})
     
-    # シグネチャの推論(Unity Catalog登録に必須)
-    signature_v2 = infer_signature(X_train, pipeline_v2.predict(X_train))
+    sig_v2 = infer_signature(X_train, classifier_v2.predict(X_train))
     
-    # モデルをログ
     mlflow.sklearn.log_model(
-        pipeline_v2,
+        sk_model=classifier_v2,
         artifact_path="model",
-        signature=signature_v2
+        signature=sig_v2,
+        input_example=X_train.head(2)
     )
     
-    run_id_v2 = run.info.run_id
-    print(f"改良版モデル AUC: {auc_v2:.4f}")
+    run_id_v2 = run_v2.info.run_id
     print(f"Run ID: {run_id_v2}")
+    print(f"ACC: {acc_v2:.4f}, F1: {f1_v2:.4f}, AUC: {auc_v2:.4f}")
 
 # COMMAND ----------
 
-# 新しいバージョンとしてレジストリに登録
+# 新しいバージョンを登録
 model_uri_v2 = f"runs:/{run_id_v2}/model"
-mlflow.register_model(model_uri_v2, MODEL_NAME)
-print("新しいバージョンを登録しました")
+model_version_v2 = mlflow.register_model(model_uri=model_uri_v2, name=MODEL_NAME)
 
-# COMMAND ----------
+time.sleep(3)
 
-# 新しいバージョンをChallengerとして設定
-versions = client.search_model_versions(f"name='{MODEL_NAME}'")
-latest_version = versions[0].version
+# Challengerエイリアスを設定
+client.set_registered_model_alias(name=MODEL_NAME, alias="Challenger", version=model_version_v2.version)
 
-try:
-    client.set_registered_model_alias(MODEL_NAME, "Challenger", latest_version)
-    print(f"バージョン {latest_version} に 'Challenger' エイリアスを設定しました")
-except Exception as e:
-    print(f"エイリアス設定エラー: {e}")
+print(f"✅ Registered to UC: {MODEL_NAME} v{model_version_v2.version} (alias=Challenger)")
+print(f"   ACC={acc_v2:.3f}, F1={f1_v2:.3f}, AUC={auc_v2:.3f}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. エイリアスによるモデル読み込み
+# MAGIC ## 7. モデルの読み込みと推論
 
 # COMMAND ----------
 
-# Championモデルの読み込み
-champion_model_uri = f"models:/{MODEL_NAME}@Champion"
-print(f"Champion URI: {champion_model_uri}")
+# Championモデルを読み込み
+loaded_model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}@Champion")
 
-try:
-    champion_model = mlflow.sklearn.load_model(champion_model_uri)
-    print("Championモデルを読み込みました")
-    
-    # 予測実行
-    sample_data = X_test.iloc[:5]
-    champion_predictions = champion_model.predict(sample_data)
-    print(f"予測結果: {champion_predictions}")
-except Exception as e:
-    print(f"読み込みエラー: {e}")
+# 全データで予測
+pred_all = loaded_model.predict(X)
+pred_proba_all = loaded_model.predict_proba(X)[:, 1]
+
+print(f"予測完了: {len(pred_all)}件")
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## 8. モデルの説明の更新
+# 予測結果をDataFrameに変換
+pred_df = pd.DataFrame({
+    "sample_id": np.arange(len(df)),
+    "prediction": pred_all.astype(int),
+    "probability": pred_proba_all.astype(float),
+    "actual": y.values
+})
 
-# COMMAND ----------
+# Sparkテーブルとして保存
+pred_sdf = spark.createDataFrame(pred_df)
+pred_sdf.write.mode("overwrite").saveAsTable(PRED_TABLE)
 
-# モデルの説明を更新
-try:
-    client.update_registered_model(
-        name=MODEL_NAME,
-        description="Wine Quality分類モデル: ワインの品質を予測するロジスティック回帰モデル"
-    )
-    print("モデルの説明を更新しました")
-except Exception as e:
-    print(f"更新エラー: {e}")
+display(spark.table(PRED_TABLE))
+print(f"✅ 推論テーブルを作成/更新: {PRED_TABLE}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## まとめ
-# MAGIC 
-# MAGIC このデモで学んだ内容:
-# MAGIC 
-# MAGIC ### Model Registryの主要機能
-# MAGIC 
-# MAGIC | 機能 | 説明 |
-# MAGIC |------|------|
-# MAGIC | モデル登録 | `registered_model_name`パラメータで自動登録 |
-# MAGIC | バージョン管理 | 登録するたびに新しいバージョンが作成される |
-# MAGIC | エイリアス | Champion/Challengerなどの役割を割り当て |
-# MAGIC | 説明 | モデルの用途やメタデータを記録 |
-# MAGIC 
-# MAGIC ### エイリアスの活用
-# MAGIC 
-# MAGIC - **Champion**: 本番環境で使用するモデル
-# MAGIC - **Challenger**: 次の候補となるモデル(A/Bテスト用)
-# MAGIC - バージョン番号ではなくエイリアスで参照することで、コード変更なしにモデルを切り替え可能
-# MAGIC 
-# MAGIC ### Unity Catalog統合の利点
-# MAGIC 
-# MAGIC 1. **ガバナンス**: データと同じ権限モデルでモデルを管理
-# MAGIC 2. **リネージ**: モデルがどのデータで学習されたか追跡
-# MAGIC 3. **発見性**: カタログブラウザでモデルを検索可能
-# MAGIC 4. **セキュリティ**: きめ細かいアクセス制御
-# MAGIC 
-# MAGIC 次のデモでは、バッチ推論を行います。
+# MAGIC ## 8. まとめ
+# MAGIC
+# MAGIC ### 学んだこと
+# MAGIC
+# MAGIC | 操作 | コード |
+# MAGIC |------|--------|
+# MAGIC | レジストリ設定 | `mlflow.set_registry_uri("databricks-uc")` |
+# MAGIC | モデル登録 | `mlflow.register_model(model_uri, name)` |
+# MAGIC | エイリアス設定 | `client.set_registered_model_alias(name, alias, version)` |
+# MAGIC | モデル読み込み | `mlflow.sklearn.load_model("models:/name@alias")` |
+# MAGIC
+# MAGIC ### Champion/Challengerパターン
+# MAGIC - **Champion**: 本番運用中のモデル
+# MAGIC - **Challenger**: 評価中の新モデル
+# MAGIC - エイリアスを切り替えるだけでモデルを入れ替え可能
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## クリーンアップ(必要に応じて実行)
+
+# COMMAND ----------
+
+# # モデルとテーブルの削除
+# client.delete_registered_model(MODEL_NAME)
+# spark.sql(f"DROP TABLE IF EXISTS {PRED_TABLE}")
+# spark.sql(f"DROP SCHEMA IF EXISTS {CATALOG}.{SCHEMA} CASCADE")
+# spark.sql(f"DROP CATALOG IF EXISTS {CATALOG} CASCADE")
+# print("クリーンアップ完了")
