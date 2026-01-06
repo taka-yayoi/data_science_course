@@ -34,7 +34,7 @@ username = spark.sql("SELECT current_user()").collect()[0][0]
 clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
 
 # カタログとスキーマ
-CATALOG = "main"
+CATALOG = "workspace"
 SCHEMA = f"ds_workshop_{clean_username}"
 
 # スキーマの作成(存在しない場合)
