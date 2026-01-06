@@ -1,10 +1,10 @@
-# 滋賀大学 データサイエンス講義
+# データサイエンス講義
 
 Databricks Free Editionを用いた機械学習・MLOpsハンズオン教材
 
 ## 概要
 
-本リポジトリは、滋賀大学大学院生向けのデータサイエンス講義で使用するノートブック教材です。
+本リポジトリは、大学院生向けのデータサイエンス講義で使用するノートブック教材です。
 
 ## 前提条件
 
@@ -14,7 +14,7 @@ Databricks Free Editionを用いた機械学習・MLOpsハンズオン教材
 ## フォルダ構成
 
 ```
-shiga-university-ds/
+ds-workshop/
 ├── README.md
 ├── demos/                              # デモ用ノートブック(講師用)
 │   ├── 01_ml_environment_check.py      # Databricks ML環境の確認

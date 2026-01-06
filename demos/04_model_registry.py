@@ -247,17 +247,6 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 9. Unity Catalogでのモデル確認
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC -- Unity Catalogでモデルを確認
-# MAGIC SHOW MODELS IN main.${SCHEMA}
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## まとめ
 # MAGIC 
 # MAGIC このデモで学んだ内容:
