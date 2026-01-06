@@ -91,7 +91,7 @@ print("データ準備完了")
 experiment_name = f"/Users/{username}/wine_quality_registry_demo"
 mlflow.set_experiment(experiment_name)
 
-# モデル学習とレジストリへの登録
+# モデル学習とログ
 with mlflow.start_run(run_name="model_for_registry") as run:
     # パイプライン構築と学習
     pipeline = Pipeline([
@@ -111,19 +111,23 @@ with mlflow.start_run(run_name="model_for_registry") as run:
     # シグネチャの推論(Unity Catalog登録に必須)
     signature = infer_signature(X_train, pipeline.predict(X_train))
     
-    # Step 1: モデルをログ
+    # モデルをログ
     mlflow.sklearn.log_model(
         pipeline,
         artifact_path="model",
         signature=signature
     )
     
+    run_id = run.info.run_id
     print(f"AUC: {auc:.4f}")
-    
-    # Step 2: レジストリに登録
-    model_uri = f"runs:/{run.info.run_id}/model"
-    mlflow.register_model(model_uri, MODEL_NAME)
-    print(f"モデルを {MODEL_NAME} に登録しました")
+    print(f"Run ID: {run_id}")
+
+# COMMAND ----------
+
+# レジストリに登録
+model_uri = f"runs:/{run_id}/model"
+mlflow.register_model(model_uri, MODEL_NAME)
+print(f"モデルを {MODEL_NAME} に登録しました")
 
 # COMMAND ----------
 
@@ -201,19 +205,23 @@ with mlflow.start_run(run_name="improved_model") as run:
     # シグネチャの推論(Unity Catalog登録に必須)
     signature_v2 = infer_signature(X_train, pipeline_v2.predict(X_train))
     
-    # Step 1: モデルをログ
+    # モデルをログ
     mlflow.sklearn.log_model(
         pipeline_v2,
         artifact_path="model",
         signature=signature_v2
     )
     
+    run_id_v2 = run.info.run_id
     print(f"改良版モデル AUC: {auc_v2:.4f}")
-    
-    # Step 2: レジストリに登録(新しいバージョンとして)
-    model_uri = f"runs:/{run.info.run_id}/model"
-    mlflow.register_model(model_uri, MODEL_NAME)
-    print("新しいバージョンを登録しました")
+    print(f"Run ID: {run_id_v2}")
+
+# COMMAND ----------
+
+# 新しいバージョンとしてレジストリに登録
+model_uri_v2 = f"runs:/{run_id_v2}/model"
+mlflow.register_model(model_uri_v2, MODEL_NAME)
+print("新しいバージョンを登録しました")
 
 # COMMAND ----------
 
