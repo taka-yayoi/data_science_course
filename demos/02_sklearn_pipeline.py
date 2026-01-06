@@ -185,27 +185,31 @@ print(cm)
 
 # COMMAND ----------
 
-# 混同行列を可視化
-import matplotlib.pyplot as plt
+# 混同行列を可視化(plotlyで日本語対応)
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
 
-fig, ax = plt.subplots(figsize=(6, 5))
-im = ax.imshow(cm, cmap="Blues")
-ax.set_xticks([0, 1])
-ax.set_yticks([0, 1])
-ax.set_xticklabels(["標準品質", "高品質"])
-ax.set_yticklabels(["標準品質", "高品質"])
-ax.set_xlabel("予測")
-ax.set_ylabel("実際")
-ax.set_title("混同行列")
+# 混同行列のヒートマップ
+labels = ["標準品質", "高品質"]
+fig = ff.create_annotated_heatmap(
+    z=cm,
+    x=labels,
+    y=labels,
+    colorscale="Blues",
+    showscale=True
+)
 
-# 数値を表示
-for i in range(2):
-    for j in range(2):
-        ax.text(j, i, cm[i, j], ha="center", va="center", fontsize=16)
+fig.update_layout(
+    title="混同行列",
+    xaxis_title="予測",
+    yaxis_title="実際",
+    width=500,
+    height=450
+)
 
-plt.colorbar(im)
-plt.tight_layout()
-plt.show()
+# y軸を反転(実際の値が上から下に並ぶように)
+fig.update_yaxes(autorange="reversed")
+fig.show()
 
 # COMMAND ----------
 
