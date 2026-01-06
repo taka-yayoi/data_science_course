@@ -40,12 +40,16 @@ mlflow.set_registry_uri("databricks-uc")
 username = spark.sql("SELECT current_user()").collect()[0][0]
 clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
 
-# カタログとスキーマの設定
-CATALOG = "workspace"
+# カタログとスキーマの設定(自前カタログを作成)
+CATALOG = f"ds_workshop_{clean_username}"
 SCHEMA = "default"
 
-# モデル名の設定(ユーザー名を含めて一意にする)
-MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_model_{clean_username}"
+# カタログとスキーマの作成
+spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
+
+# モデル名の設定
+MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_model"
 
 print(f"カタログ: {CATALOG}")
 print(f"スキーマ: {SCHEMA}")
