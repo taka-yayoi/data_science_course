@@ -37,8 +37,8 @@ username = spark.sql("SELECT current_user()").collect()[0][0]
 print(f"ユーザー: {username}")
 
 # ノートブックエクスペリメントを使用(自動作成)
-# mlflow.start_run()を呼ぶと、このノートブックに紐づく実験が自動的に使われます
-print("MLflow実験: このノートブックに自動的に紐づきます")
+# mlflow.start_run()を呼ぶと、このノートブックに紐づくエクスペリメントが自動的に使われます
+print("MLflowエクスペリメント: このノートブックに自動的に紐づきます")
 
 # COMMAND ----------
 
@@ -129,7 +129,7 @@ with mlflow.start_run(run_name="logistic_regression_manual"):
     mlflow.log_metric("auc_roc", auc)
     
     # モデルの記録
-    mlflow.sklearn.log_model(pipeline, "sklearn_model")
+    mlflow.sklearn.log_model(pipeline, "model")
     
     print(f"Accuracy: {accuracy:.4f}")
     print(f"F1 Score: {f1:.4f}")
@@ -223,7 +223,7 @@ mlflow.autolog(disable=True)
 
 # COMMAND ----------
 
-# 実験のランを取得(ノートブックエクスペリメントから)
+# エクスペリメントのランを取得(ノートブックエクスペリメントから)
 runs_df = mlflow.search_runs()
 
 # 結果の表示
@@ -256,7 +256,7 @@ print(f"Test AUC: {best_run['metrics.test_auc']:.4f}")
 
 # ベストモデルの読み込み
 best_run_id = best_run["run_id"]
-loaded_model = mlflow.sklearn.load_model(f"runs:/{best_run_id}/sklearn_model")
+loaded_model = mlflow.sklearn.load_model(f"runs:/{best_run_id}/model")
 
 # 新しいデータで予測
 sample_data = X_test.iloc[:5]
@@ -274,9 +274,9 @@ for i, (pred, prob, actual) in enumerate(zip(new_predictions, new_probabilities,
 
 # COMMAND ----------
 
-# 実験へのリンクを表示
-print("MLflow実験ページ: ノートブック右上の「実験」アイコンから確認できます")
-print("または、左サイドバーの「実験」からノートブック名で検索してください")
+# エクスペリメントへのリンクを表示
+print("MLflowエクスペリメント: ノートブック右上の「エクスペリメント」アイコンから確認できます")
+print("または、左サイドバーの「エクスペリメント」からノートブック名で検索してください")
 
 # COMMAND ----------
 

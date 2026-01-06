@@ -89,7 +89,7 @@ print("データ準備完了")
 
 # COMMAND ----------
 
-# 実験の設定
+# エクスペリメントの設定
 experiment_name = f"/Users/{username}/wine_quality_registry_demo"
 mlflow.set_experiment(experiment_name)
 
@@ -113,7 +113,7 @@ with mlflow.start_run(run_name="model_for_registry") as run:
     # モデルの記録と登録
     mlflow.sklearn.log_model(
         pipeline,
-        artifact_path="sklearn_model",
+        artifact_path="model",
         registered_model_name=MODEL_NAME
     )
     
@@ -196,7 +196,7 @@ with mlflow.start_run(run_name="improved_model") as run:
     # 新しいバージョンとして登録
     mlflow.sklearn.log_model(
         pipeline_v2,
-        artifact_path="sklearn_model",
+        artifact_path="model",
         registered_model_name=MODEL_NAME
     )
     
