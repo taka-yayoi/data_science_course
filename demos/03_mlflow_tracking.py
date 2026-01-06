@@ -17,8 +17,17 @@
 # COMMAND ----------
 
 import mlflow
-import mlflow.spark
-from mlflow.models.signature import infer_signature
+import mlflow.sklearn
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+# COMMAND ----------
 
 # 現在のユーザー名を取得
 username = spark.sql("SELECT current_user()").collect()[0][0]
@@ -36,46 +45,37 @@ print(f"実験名: {experiment_name}")
 
 # COMMAND ----------
 
-from pyspark.sql.functions import when, col
-
 # Wine Qualityデータセットの読み込み
-wine_df = spark.read.csv(
+wine_spark_df = spark.read.csv(
     "/databricks-datasets/wine-quality/winequality-red.csv",
     header=True,
     inferSchema=True,
     sep=";"
 )
 
-# カラム名のクリーンアップ
-for col_name in wine_df.columns:
-    wine_df = wine_df.withColumnRenamed(col_name, col_name.replace(" ", "_"))
+# pandasに変換
+df = wine_spark_df.toPandas()
 
 # 二値分類用のラベル作成
-wine_df = wine_df.withColumn(
-    "label",
-    when(col("quality") >= 6, 1.0).otherwise(0.0)
-)
+df["label"] = (df["quality"] >= 6).astype(int)
 
-# 特徴量カラム
-feature_cols = [c for c in wine_df.columns if c not in ["quality", "label"]]
+# 特徴量とターゲットの分離
+feature_cols = [c for c in df.columns if c not in ["quality", "label"]]
+X = df[feature_cols]
+y = df["label"]
 
 # データ分割
-train_df, test_df = wine_df.randomSplit([0.8, 0.2], seed=42)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
 
-print(f"訓練データ: {train_df.count()} 件")
-print(f"テストデータ: {test_df.count()} 件")
+print(f"訓練データ: {X_train.shape[0]} 件")
+print(f"テストデータ: {X_test.shape[0]} 件")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 3. MLflowによる実験記録
-
-# COMMAND ----------
-
-from pyspark.ml.feature import VectorAssembler, StandardScaler
-from pyspark.ml.classification import LogisticRegression
-from pyspark.ml import Pipeline
-from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
 
 # COMMAND ----------
 
@@ -86,9 +86,9 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClass
 
 # ハイパーパラメータの設定
 params = {
-    "maxIter": 100,
-    "regParam": 0.01,
-    "elasticNetParam": 0.5
+    "C": 1.0,
+    "max_iter": 100,
+    "solver": "lbfgs"
 }
 
 # MLflowラン開始
@@ -96,47 +96,42 @@ with mlflow.start_run(run_name="logistic_regression_manual"):
     
     # パラメータの記録
     mlflow.log_params(params)
-    mlflow.log_param("features", feature_cols)
+    mlflow.log_param("model_type", "LogisticRegression")
     
-    # Pipeline構築
-    assembler = VectorAssembler(inputCols=feature_cols, outputCol="raw_features")
-    scaler = StandardScaler(inputCol="raw_features", outputCol="features", withStd=True, withMean=True)
-    lr = LogisticRegression(
-        featuresCol="features",
-        labelCol="label",
-        maxIter=params["maxIter"],
-        regParam=params["regParam"],
-        elasticNetParam=params["elasticNetParam"]
-    )
-    
-    pipeline = Pipeline(stages=[assembler, scaler, lr])
+    # パイプライン構築
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("classifier", LogisticRegression(
+            C=params["C"],
+            max_iter=params["max_iter"],
+            solver=params["solver"],
+            random_state=42
+        ))
+    ])
     
     # モデル学習
-    model = pipeline.fit(train_df)
+    pipeline.fit(X_train, y_train)
     
     # 予測
-    predictions = model.transform(test_df)
+    y_pred = pipeline.predict(X_test)
+    y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
     
     # 評価指標の計算
-    auc_evaluator = BinaryClassificationEvaluator(labelCol="label", metricName="areaUnderROC")
-    acc_evaluator = MulticlassClassificationEvaluator(labelCol="label", metricName="accuracy")
-    f1_evaluator = MulticlassClassificationEvaluator(labelCol="label", metricName="f1")
-    
-    auc = auc_evaluator.evaluate(predictions)
-    accuracy = acc_evaluator.evaluate(predictions)
-    f1 = f1_evaluator.evaluate(predictions)
+    accuracy = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+    auc = roc_auc_score(y_test, y_pred_proba)
     
     # メトリクスの記録
-    mlflow.log_metric("auc_roc", auc)
     mlflow.log_metric("accuracy", accuracy)
     mlflow.log_metric("f1_score", f1)
+    mlflow.log_metric("auc_roc", auc)
     
     # モデルの記録
-    mlflow.spark.log_model(model, "spark_model")
+    mlflow.sklearn.log_model(pipeline, "sklearn_model")
     
-    print(f"AUC-ROC:  {auc:.4f}")
     print(f"Accuracy: {accuracy:.4f}")
     print(f"F1 Score: {f1:.4f}")
+    print(f"AUC-ROC:  {auc:.4f}")
     
     run_id = mlflow.active_run().info.run_id
     print(f"\nRun ID: {run_id}")
@@ -155,40 +150,69 @@ mlflow.autolog()
 
 # 異なるパラメータで実験
 params_list = [
-    {"maxIter": 50, "regParam": 0.001},
-    {"maxIter": 100, "regParam": 0.1},
-    {"maxIter": 200, "regParam": 0.01},
+    {"C": 0.1, "max_iter": 100},
+    {"C": 1.0, "max_iter": 200},
+    {"C": 10.0, "max_iter": 100},
 ]
 
 for i, params in enumerate(params_list):
-    with mlflow.start_run(run_name=f"autolog_experiment_{i+1}"):
+    with mlflow.start_run(run_name=f"lr_experiment_{i+1}"):
         # タグの追加
         mlflow.set_tag("experiment_type", "hyperparameter_search")
         mlflow.set_tag("iteration", i+1)
         
-        # Pipeline構築
-        assembler = VectorAssembler(inputCols=feature_cols, outputCol="raw_features")
-        scaler = StandardScaler(inputCol="raw_features", outputCol="features", withStd=True, withMean=True)
-        lr = LogisticRegression(
-            featuresCol="features",
-            labelCol="label",
-            maxIter=params["maxIter"],
-            regParam=params["regParam"]
-        )
-        
-        pipeline = Pipeline(stages=[assembler, scaler, lr])
+        # パイプライン構築
+        pipeline = Pipeline([
+            ("scaler", StandardScaler()),
+            ("classifier", LogisticRegression(
+                C=params["C"],
+                max_iter=params["max_iter"],
+                random_state=42
+            ))
+        ])
         
         # モデル学習(autologにより自動記録)
-        model = pipeline.fit(train_df)
-        
-        # 予測と評価
-        predictions = model.transform(test_df)
-        auc = BinaryClassificationEvaluator(labelCol="label", metricName="areaUnderROC").evaluate(predictions)
+        pipeline.fit(X_train, y_train)
         
         # 追加メトリクスの記録
+        y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
+        auc = roc_auc_score(y_test, y_pred_proba)
         mlflow.log_metric("test_auc", auc)
         
-        print(f"実験 {i+1}: maxIter={params['maxIter']}, regParam={params['regParam']} -> AUC={auc:.4f}")
+        print(f"実験 {i+1}: C={params['C']}, max_iter={params['max_iter']} -> AUC={auc:.4f}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 3.3 異なるアルゴリズムの比較
+
+# COMMAND ----------
+
+# RandomForestでも実験
+with mlflow.start_run(run_name="random_forest"):
+    mlflow.set_tag("model_type", "RandomForest")
+    
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("classifier", RandomForestClassifier(
+            n_estimators=100,
+            max_depth=5,
+            random_state=42
+        ))
+    ])
+    
+    pipeline.fit(X_train, y_train)
+    
+    y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_pred_proba)
+    mlflow.log_metric("test_auc", auc)
+    
+    print(f"RandomForest AUC: {auc:.4f}")
+
+# COMMAND ----------
+
+# オートロギングを無効化
+mlflow.autolog(disable=True)
 
 # COMMAND ----------
 
@@ -202,7 +226,7 @@ experiment = mlflow.get_experiment_by_name(experiment_name)
 runs_df = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
 
 # 結果の表示
-display(runs_df[["run_id", "metrics.test_auc", "params.maxIter", "params.regParam", "tags.mlflow.runName"]])
+display(runs_df[["run_id", "metrics.test_auc", "tags.mlflow.runName", "status"]])
 
 # COMMAND ----------
 
@@ -211,8 +235,9 @@ display(runs_df[["run_id", "metrics.test_auc", "params.maxIter", "params.regPara
 
 # COMMAND ----------
 
-# AUCが最も高いランを取得
-best_run = runs_df.loc[runs_df["metrics.test_auc"].idxmax()]
+# test_aucでソートしてベストモデルを取得
+runs_with_auc = runs_df[runs_df["metrics.test_auc"].notna()].copy()
+best_run = runs_with_auc.loc[runs_with_auc["metrics.test_auc"].idxmax()]
 
 print("=" * 50)
 print("ベストモデル")
@@ -220,9 +245,6 @@ print("=" * 50)
 print(f"Run ID: {best_run['run_id']}")
 print(f"Run Name: {best_run['tags.mlflow.runName']}")
 print(f"Test AUC: {best_run['metrics.test_auc']:.4f}")
-print(f"Parameters:")
-print(f"  maxIter: {best_run.get('params.maxIter', 'N/A')}")
-print(f"  regParam: {best_run.get('params.regParam', 'N/A')}")
 
 # COMMAND ----------
 
@@ -233,12 +255,16 @@ print(f"  regParam: {best_run.get('params.regParam', 'N/A')}")
 
 # ベストモデルの読み込み
 best_run_id = best_run["run_id"]
-loaded_model = mlflow.spark.load_model(f"runs:/{best_run_id}/spark_model")
+loaded_model = mlflow.sklearn.load_model(f"runs:/{best_run_id}/sklearn_model")
 
 # 新しいデータで予測
-sample_data = test_df.limit(5)
-new_predictions = loaded_model.transform(sample_data)
-display(new_predictions.select("label", "prediction", "probability"))
+sample_data = X_test.iloc[:5]
+new_predictions = loaded_model.predict(sample_data)
+new_probabilities = loaded_model.predict_proba(sample_data)[:, 1]
+
+print("予測結果:")
+for i, (pred, prob, actual) in enumerate(zip(new_predictions, new_probabilities, y_test.iloc[:5])):
+    print(f"  サンプル{i+1}: 予測={pred}, 確率={prob:.2%}, 実際={actual}")
 
 # COMMAND ----------
 
@@ -248,9 +274,9 @@ display(new_predictions.select("label", "prediction", "probability"))
 # COMMAND ----------
 
 # 実験へのリンクを表示
-experiment_url = f"#mlflow/experiments/{experiment.experiment_id}"
-print(f"MLflow実験ページ: {experiment_url}")
-print("\n左サイドバーの「実験」から確認することもできます。")
+print(f"MLflow実験ページ: 左サイドバーの「実験」から確認できます")
+print(f"実験名: {experiment_name}")
+print(f"実験ID: {experiment.experiment_id}")
 
 # COMMAND ----------
 
@@ -265,7 +291,7 @@ print("\n左サイドバーの「実験」から確認することもできま�
 # MAGIC |------|------|-----|
 # MAGIC | パラメータ記録 | ハイパーパラメータを保存 | `mlflow.log_param()` |
 # MAGIC | メトリクス記録 | 評価指標を保存 | `mlflow.log_metric()` |
-# MAGIC | モデル記録 | 学習済みモデルを保存 | `mlflow.spark.log_model()` |
+# MAGIC | モデル記録 | 学習済みモデルを保存 | `mlflow.sklearn.log_model()` |
 # MAGIC | タグ | メタデータを追加 | `mlflow.set_tag()` |
 # MAGIC | オートロギング | 自動で記録 | `mlflow.autolog()` |
 # MAGIC 

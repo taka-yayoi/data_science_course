@@ -7,7 +7,7 @@
 # MAGIC ## 学習目標
 # MAGIC - Databricksワークスペースの構成を理解する
 # MAGIC - 利用可能なMLライブラリを確認する
-# MAGIC - サーバーレスコンピュートの動作を確認する
+# MAGIC - サーバーレスコンピュートでの機械学習環境を理解する
 
 # COMMAND ----------
 
@@ -36,11 +36,11 @@ print(f"Python バージョン: {sys.version}")
 import importlib
 
 libraries = [
-    ("pyspark.ml", "SparkML"),
-    ("mlflow", "MLflow"),
     ("sklearn", "scikit-learn"),
+    ("mlflow", "MLflow"),
     ("pandas", "pandas"),
     ("numpy", "NumPy"),
+    ("xgboost", "XGBoost"),
 ]
 
 print("=" * 50)
@@ -58,7 +58,20 @@ for module_name, display_name in libraries:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. MLflowの確認
+# MAGIC ## 3. Free Editionサーバーレス環境の特徴
+# MAGIC 
+# MAGIC | 項目 | 説明 |
+# MAGIC |------|------|
+# MAGIC | 計算リソース | サーバーレスコンピュート(自動管理) |
+# MAGIC | 利用可能なML | scikit-learn, XGBoost, pandas等 |
+# MAGIC | 制限事項 | SparkML(pyspark.ml)は利用不可 |
+# MAGIC | MLflow | 完全サポート |
+# MAGIC | Unity Catalog | 利用可能 |
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4. MLflowの確認
 
 # COMMAND ----------
 
@@ -74,7 +87,7 @@ print(f"現在のユーザー: {username}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. カタログとスキーマの確認
+# MAGIC ## 5. カタログとスキーマの確認
 
 # COMMAND ----------
 
@@ -91,7 +104,7 @@ print(f"現在のユーザー: {username}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. サンプルデータの確認
+# MAGIC ## 6. サンプルデータの確認
 
 # COMMAND ----------
 
@@ -120,12 +133,19 @@ display(wine_df.limit(10))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. 基本的な統計情報
+# MAGIC ## 7. Spark DataFrameからpandasへの変換
 
 # COMMAND ----------
 
-# 統計サマリー
-display(wine_df.summary())
+# pandasに変換(小規模データの場合)
+pdf = wine_df.toPandas()
+print(f"pandas DataFrame: {pdf.shape}")
+pdf.head()
+
+# COMMAND ----------
+
+# 基本統計量
+pdf.describe()
 
 # COMMAND ----------
 
@@ -135,9 +155,19 @@ display(wine_df.summary())
 # MAGIC このデモで確認した内容:
 # MAGIC 
 # MAGIC 1. **Sparkバージョン**: Databricksが提供する最適化されたSpark環境
-# MAGIC 2. **MLライブラリ**: SparkML、MLflow、scikit-learn等が事前インストール済み
+# MAGIC 2. **MLライブラリ**: scikit-learn、MLflow、XGBoost等が事前インストール済み
 # MAGIC 3. **MLflow統合**: DatabricksワークスペースにMLflowが統合されている
 # MAGIC 4. **Unity Catalog**: データガバナンスのためのカタログ機能
 # MAGIC 5. **サンプルデータ**: `/databricks-datasets/`に各種データセットが用意されている
 # MAGIC 
-# MAGIC 次のデモでは、SparkMLを使ったパイプライン構築を行います。
+# MAGIC ### Free Editionでの機械学習ワークフロー
+# MAGIC 
+# MAGIC ```
+# MAGIC Spark DataFrame → .toPandas() → scikit-learn → MLflow → Unity Catalog
+# MAGIC ```
+# MAGIC 
+# MAGIC - データの読み込み・書き込みはSparkを使用
+# MAGIC - 機械学習はscikit-learnで実行
+# MAGIC - 実験管理・モデル管理はMLflowで実行
+# MAGIC 
+# MAGIC 次のデモでは、scikit-learnを使ったモデル開発を行います。

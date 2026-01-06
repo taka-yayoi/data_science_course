@@ -17,7 +17,17 @@
 # COMMAND ----------
 
 import mlflow
+import mlflow.sklearn
 from mlflow.tracking import MlflowClient
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import roc_auc_score
+
+# COMMAND ----------
 
 # Unity Catalogをモデルレジストリとして使用
 mlflow.set_registry_uri("databricks-uc")
@@ -36,39 +46,36 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 # モデル名の設定
 MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_model"
 
+print(f"カタログ: {CATALOG}")
+print(f"スキーマ: {SCHEMA}")
 print(f"モデル名: {MODEL_NAME}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. モデルの準備(前のデモで作成したモデルを使用)
+# MAGIC ## 2. データとモデルの準備
 
 # COMMAND ----------
 
-from pyspark.sql.functions import when, col
-from pyspark.ml.feature import VectorAssembler, StandardScaler
-from pyspark.ml.classification import LogisticRegression
-from pyspark.ml import Pipeline
-from pyspark.ml.evaluation import BinaryClassificationEvaluator
-
-# データの準備
-wine_df = spark.read.csv(
+# Wine Qualityデータセットの読み込み
+wine_spark_df = spark.read.csv(
     "/databricks-datasets/wine-quality/winequality-red.csv",
     header=True,
     inferSchema=True,
     sep=";"
 )
 
-for col_name in wine_df.columns:
-    wine_df = wine_df.withColumnRenamed(col_name, col_name.replace(" ", "_"))
+# pandasに変換
+df = wine_spark_df.toPandas()
+df["label"] = (df["quality"] >= 6).astype(int)
 
-wine_df = wine_df.withColumn(
-    "label",
-    when(col("quality") >= 6, 1.0).otherwise(0.0)
+feature_cols = [c for c in df.columns if c not in ["quality", "label"]]
+X = df[feature_cols]
+y = df["label"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
 )
-
-feature_cols = [c for c in wine_df.columns if c not in ["quality", "label"]]
-train_df, test_df = wine_df.randomSplit([0.8, 0.2], seed=42)
 
 print("データ準備完了")
 
@@ -85,24 +92,25 @@ mlflow.set_experiment(experiment_name)
 
 # モデル学習とレジストリへの登録
 with mlflow.start_run(run_name="model_for_registry") as run:
-    # Pipeline構築と学習
-    assembler = VectorAssembler(inputCols=feature_cols, outputCol="raw_features")
-    scaler = StandardScaler(inputCol="raw_features", outputCol="features", withStd=True, withMean=True)
-    lr = LogisticRegression(featuresCol="features", labelCol="label", maxIter=100, regParam=0.01)
+    # パイプライン構築と学習
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("classifier", LogisticRegression(C=1.0, max_iter=100, random_state=42))
+    ])
     
-    pipeline = Pipeline(stages=[assembler, scaler, lr])
-    model = pipeline.fit(train_df)
+    pipeline.fit(X_train, y_train)
     
     # 評価
-    predictions = model.transform(test_df)
-    auc = BinaryClassificationEvaluator(labelCol="label", metricName="areaUnderROC").evaluate(predictions)
+    y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_pred_proba)
     
     mlflow.log_metric("test_auc", auc)
+    mlflow.log_param("model_type", "LogisticRegression")
     
     # モデルの記録と登録
-    mlflow.spark.log_model(
-        model,
-        artifact_path="spark_model",
+    mlflow.sklearn.log_model(
+        pipeline,
+        artifact_path="sklearn_model",
         registered_model_name=MODEL_NAME
     )
     
@@ -124,7 +132,6 @@ try:
     model_info = client.get_registered_model(MODEL_NAME)
     print(f"モデル名: {model_info.name}")
     print(f"説明: {model_info.description or '(未設定)'}")
-    print(f"作成日時: {model_info.creation_timestamp}")
 except Exception as e:
     print(f"モデル情報の取得エラー: {e}")
 
@@ -135,7 +142,7 @@ versions = client.search_model_versions(f"name='{MODEL_NAME}'")
 
 print(f"\n登録されているバージョン数: {len(versions)}")
 for v in versions:
-    print(f"  バージョン {v.version}: 状態={v.status}, 作成日時={v.creation_timestamp}")
+    print(f"  バージョン {v.version}: 作成日時={v.creation_timestamp}")
 
 # COMMAND ----------
 
@@ -164,30 +171,29 @@ except Exception as e:
 # 異なるパラメータで新しいモデルを学習
 with mlflow.start_run(run_name="improved_model") as run:
     # より強い正則化のモデル
-    assembler = VectorAssembler(inputCols=feature_cols, outputCol="raw_features")
-    scaler = StandardScaler(inputCol="raw_features", outputCol="features", withStd=True, withMean=True)
-    lr = LogisticRegression(
-        featuresCol="features",
-        labelCol="label",
-        maxIter=200,
-        regParam=0.001,
-        elasticNetParam=0.5
-    )
+    pipeline_v2 = Pipeline([
+        ("scaler", StandardScaler()),
+        ("classifier", LogisticRegression(
+            C=0.5,
+            max_iter=200,
+            solver="lbfgs",
+            random_state=42
+        ))
+    ])
     
-    pipeline = Pipeline(stages=[assembler, scaler, lr])
-    model_v2 = pipeline.fit(train_df)
+    pipeline_v2.fit(X_train, y_train)
     
     # 評価
-    predictions_v2 = model_v2.transform(test_df)
-    auc_v2 = BinaryClassificationEvaluator(labelCol="label", metricName="areaUnderROC").evaluate(predictions_v2)
+    y_pred_proba_v2 = pipeline_v2.predict_proba(X_test)[:, 1]
+    auc_v2 = roc_auc_score(y_test, y_pred_proba_v2)
     
     mlflow.log_metric("test_auc", auc_v2)
-    mlflow.log_param("model_type", "improved")
+    mlflow.log_param("model_type", "LogisticRegression_v2")
     
     # 新しいバージョンとして登録
-    mlflow.spark.log_model(
-        model_v2,
-        artifact_path="spark_model",
+    mlflow.sklearn.log_model(
+        pipeline_v2,
+        artifact_path="sklearn_model",
         registered_model_name=MODEL_NAME
     )
     
@@ -218,12 +224,13 @@ champion_model_uri = f"models:/{MODEL_NAME}@Champion"
 print(f"Champion URI: {champion_model_uri}")
 
 try:
-    champion_model = mlflow.spark.load_model(champion_model_uri)
+    champion_model = mlflow.sklearn.load_model(champion_model_uri)
     print("Championモデルを読み込みました")
     
     # 予測実行
-    champion_predictions = champion_model.transform(test_df.limit(5))
-    display(champion_predictions.select("label", "prediction"))
+    sample_data = X_test.iloc[:5]
+    champion_predictions = champion_model.predict(sample_data)
+    print(f"予測結果: {champion_predictions}")
 except Exception as e:
     print(f"読み込みエラー: {e}")
 
@@ -272,3 +279,5 @@ except Exception as e:
 # MAGIC 2. **リネージ**: モデルがどのデータで学習されたか追跡
 # MAGIC 3. **発見性**: カタログブラウザでモデルを検索可能
 # MAGIC 4. **セキュリティ**: きめ細かいアクセス制御
+# MAGIC 
+# MAGIC 次のデモでは、バッチ推論を行います。
