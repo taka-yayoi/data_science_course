@@ -111,15 +111,18 @@ with mlflow.start_run(run_name="model_for_registry") as run:
     # シグネチャの推論(Unity Catalog登録に必須)
     signature = infer_signature(X_train, pipeline.predict(X_train))
     
-    # モデルの記録と登録
+    # Step 1: モデルをログ
     mlflow.sklearn.log_model(
         pipeline,
         artifact_path="model",
-        signature=signature,
-        registered_model_name=MODEL_NAME
+        signature=signature
     )
     
     print(f"AUC: {auc:.4f}")
+    
+    # Step 2: レジストリに登録
+    model_uri = f"runs:/{run.info.run_id}/model"
+    mlflow.register_model(model_uri, MODEL_NAME)
     print(f"モデルを {MODEL_NAME} に登録しました")
 
 # COMMAND ----------
@@ -198,15 +201,18 @@ with mlflow.start_run(run_name="improved_model") as run:
     # シグネチャの推論(Unity Catalog登録に必須)
     signature_v2 = infer_signature(X_train, pipeline_v2.predict(X_train))
     
-    # 新しいバージョンとして登録
+    # Step 1: モデルをログ
     mlflow.sklearn.log_model(
         pipeline_v2,
         artifact_path="model",
-        signature=signature_v2,
-        registered_model_name=MODEL_NAME
+        signature=signature_v2
     )
     
     print(f"改良版モデル AUC: {auc_v2:.4f}")
+    
+    # Step 2: レジストリに登録(新しいバージョンとして)
+    model_uri = f"runs:/{run.info.run_id}/model"
+    mlflow.register_model(model_uri, MODEL_NAME)
     print("新しいバージョンを登録しました")
 
 # COMMAND ----------
