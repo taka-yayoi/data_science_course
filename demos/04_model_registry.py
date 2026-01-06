@@ -18,6 +18,9 @@
 
 import mlflow
 import mlflow.sklearn
+
+# サーバーレス環境用: レジストリURIを明示的に設定
+mlflow.set_registry_uri("databricks-uc")
 from mlflow.tracking import MlflowClient
 import pandas as pd
 import numpy as np

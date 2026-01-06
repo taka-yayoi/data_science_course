@@ -18,6 +18,9 @@
 
 import mlflow
 import mlflow.sklearn
+
+# サーバーレス環境用: レジストリURIを明示的に設定
+mlflow.set_registry_uri("databricks-uc")
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split

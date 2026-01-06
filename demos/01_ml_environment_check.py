@@ -77,8 +77,12 @@ for module_name, display_name in libraries:
 
 import mlflow
 
+# サーバーレス環境用: レジストリURIを明示的に設定
+mlflow.set_registry_uri("databricks-uc")
+
 # MLflowのトラッキングURIを確認
 print(f"MLflow Tracking URI: {mlflow.get_tracking_uri()}")
+print(f"MLflow Registry URI: {mlflow.get_registry_uri()}")
 
 # 現在のユーザーを取得
 username = spark.sql("SELECT current_user()").collect()[0][0]
