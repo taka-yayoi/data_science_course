@@ -42,13 +42,10 @@ clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
 
 # カタログとスキーマの設定
 CATALOG = "workspace"
-SCHEMA = f"ds_workshop_{clean_username}"
+SCHEMA = "default"
 
-# スキーマの作成
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
-
-# モデル名の設定
-MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_model"
+# モデル名の設定(ユーザー名を含めて一意にする)
+MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_model_{clean_username}"
 
 print(f"カタログ: {CATALOG}")
 print(f"スキーマ: {SCHEMA}")

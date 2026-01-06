@@ -35,15 +35,13 @@ clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
 
 # カタログとスキーマ
 CATALOG = "workspace"
-SCHEMA = f"ds_workshop_{clean_username}"
+SCHEMA = "default"
 
-# スキーマの作成(存在しない場合)
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 spark.sql(f"USE CATALOG {CATALOG}")
 spark.sql(f"USE SCHEMA {SCHEMA}")
 
-# モデル名
-MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_model"
+# モデル名(04_model_registryと同じ命名規則)
+MODEL_NAME = f"{CATALOG}.{SCHEMA}.wine_quality_model_{clean_username}"
 
 print(f"カタログ: {CATALOG}")
 print(f"スキーマ: {SCHEMA}")
