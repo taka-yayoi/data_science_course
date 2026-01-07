@@ -201,7 +201,40 @@ print(f"\nバージョン数: {len(versions)}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. 改良版モデルの作成と登録
+# MAGIC ### 📍 カタログエクスプローラで確認
+# MAGIC
+# MAGIC 登録されたモデルはカタログエクスプローラから確認できます。
+# MAGIC
+# MAGIC 1. 左メニューの「カタログ」をクリック
+# MAGIC 2. `ds_workshop_<ユーザー名>` > `ml` > `Models` を展開
+# MAGIC 3. `wine_quality_logreg` をクリック
+# MAGIC
+# MAGIC **確認ポイント:**
+# MAGIC - Version 1が表示されている
+# MAGIC - 「Champion」エイリアスが設定されている
+# MAGIC - メトリクス(ACC, F1, AUC)が記録されている
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 6. Champion/Challengerパターン
+# MAGIC
+# MAGIC 本番環境でのモデル管理では**Champion/Challenger**パターンがよく使われます。
+# MAGIC
+# MAGIC | エイリアス | 役割 |
+# MAGIC |------------|------|
+# MAGIC | **Champion** | 本番運用中のモデル。推論APIやバッチ処理で使用される |
+# MAGIC | **Challenger** | 評価中の新モデル。Championより優れていれば昇格 |
+# MAGIC
+# MAGIC **メリット:**
+# MAGIC - 推論コードを変更せずにモデルを切り替え可能
+# MAGIC - バージョン番号ではなく「役割」でモデルを参照できる
+# MAGIC - ロールバックも容易(エイリアスを戻すだけ)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 7. 改良版モデルの作成と登録
 
 # COMMAND ----------
 
@@ -261,18 +294,106 @@ print(f"   ACC={acc_v2:.3f}, F1={f1_v2:.3f}, AUC={auc_v2:.3f}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. モデルの読み込みと推論
+# MAGIC ### 📍 カタログエクスプローラで確認(2つのバージョン)
+# MAGIC
+# MAGIC 再度カタログエクスプローラで `wine_quality_logreg` を確認してください。
+# MAGIC
+# MAGIC **確認ポイント:**
+# MAGIC - Version 1 と Version 2 が表示されている
+# MAGIC - Version 1 に「Champion」エイリアス
+# MAGIC - Version 2 に「Challenger」エイリアス
+# MAGIC
+# MAGIC これにより、本番用(Champion)と評価用(Challenger)のモデルが明確に区別されます。
 
 # COMMAND ----------
 
-# Championモデルを読み込み
+# MAGIC %md
+# MAGIC ## 8. モデル比較と本番昇格
+
+# COMMAND ----------
+
+# 2つのモデルの精度を比較
+print("=" * 50)
+print("モデル比較")
+print("=" * 50)
+print(f"Champion (v1):   ACC={acc:.4f}, F1={f1:.4f}, AUC={auc:.4f}")
+print(f"Challenger (v2): ACC={acc_v2:.4f}, F1={f1_v2:.4f}, AUC={auc_v2:.4f}")
+print("=" * 50)
+
+# Challengerが優れているか判定
+if auc_v2 > auc:
+    print("✅ Challenger がChampionを上回っています！")
+    promote = True
+else:
+    print("⚠️ Champion が引き続き最良です")
+    promote = False
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Challengerの本番昇格
+# MAGIC
+# MAGIC Challengerのほうが優れている場合、エイリアスを切り替えて本番昇格させます。
+# MAGIC
+# MAGIC **ポイント:** 推論コードは `@Champion` を参照しているため、コード変更なしでモデルが切り替わります。
+
+# COMMAND ----------
+
+# Challengerを新しいChampionに昇格
+if promote:
+    # 旧Championのエイリアスを削除(オプション)
+    client.delete_registered_model_alias(name=MODEL_NAME, alias="Champion")
+    
+    # ChallengerをChampionに昇格
+    client.set_registered_model_alias(name=MODEL_NAME, alias="Champion", version=model_version_v2.version)
+    
+    # Challengerエイリアスを削除
+    client.delete_registered_model_alias(name=MODEL_NAME, alias="Challenger")
+    
+    print(f"🎉 Version {model_version_v2.version} を Champion に昇格しました！")
+else:
+    print("昇格はスキップされました")
+
+# COMMAND ----------
+
+# エイリアスの状態を確認
+model_info_updated = client.get_registered_model(MODEL_NAME)
+print("現在のエイリアス:")
+if model_info_updated.aliases:
+    for alias, version in model_info_updated.aliases.items():
+        print(f"  - @{alias} -> Version {version}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 📍 カタログエクスプローラで確認(昇格後)
+# MAGIC
+# MAGIC カタログエクスプローラを更新して、エイリアスが変更されていることを確認してください。
+# MAGIC
+# MAGIC **確認ポイント:**
+# MAGIC - Version 2 に「Champion」エイリアスが移動している
+# MAGIC - Challengerエイリアスは削除されている
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 9. Championモデルで推論
+# MAGIC
+# MAGIC エイリアスを使った推論の最大のメリットは、**コードを変更せずにモデルを切り替えられる**ことです。
+# MAGIC
+# MAGIC 以下のコードは昇格前後で全く同じですが、参照するモデルは自動的に新しいChampionに切り替わっています。
+
+# COMMAND ----------
+
+# Championモデルを読み込み(コードは変更なし！)
 loaded_model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}@Champion")
 
 # 全データで予測
 pred_all = loaded_model.predict(X)
 pred_proba_all = loaded_model.predict_proba(X)[:, 1]
 
-print(f"予測完了: {len(pred_all)}件")
+print(f"✅ Championモデルで予測完了: {len(pred_all)}件")
+print(f"   (参照先は自動的に最新のChampionに切り替わっています)")
 
 # COMMAND ----------
 
@@ -294,7 +415,7 @@ print(f"✅ 推論テーブルを作成/更新: {PRED_TABLE}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 8. まとめ
+# MAGIC ## 10. まとめ
 # MAGIC
 # MAGIC ### 学んだこと
 # MAGIC
@@ -303,12 +424,16 @@ print(f"✅ 推論テーブルを作成/更新: {PRED_TABLE}")
 # MAGIC | レジストリ設定 | `mlflow.set_registry_uri("databricks-uc")` |
 # MAGIC | モデル登録 | `mlflow.register_model(model_uri, name)` |
 # MAGIC | エイリアス設定 | `client.set_registered_model_alias(name, alias, version)` |
+# MAGIC | エイリアス削除 | `client.delete_registered_model_alias(name, alias)` |
 # MAGIC | モデル読み込み | `mlflow.sklearn.load_model("models:/name@alias")` |
 # MAGIC
-# MAGIC ### Champion/Challengerパターン
-# MAGIC - **Champion**: 本番運用中のモデル
-# MAGIC - **Challenger**: 評価中の新モデル
-# MAGIC - エイリアスを切り替えるだけでモデルを入れ替え可能
+# MAGIC ### Champion/Challengerパターンのワークフロー
+# MAGIC
+# MAGIC 1. **初回デプロイ**: モデルを登録し、Championエイリアスを設定
+# MAGIC 2. **改善検証**: 新モデルをChallengerとして登録
+# MAGIC 3. **比較評価**: Champion vs Challengerの精度を比較
+# MAGIC 4. **本番昇格**: Challengerが優れていれば、Championエイリアスを移動
+# MAGIC 5. **推論継続**: `@Champion`を参照する推論コードは変更不要
 
 # COMMAND ----------
 
