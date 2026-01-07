@@ -186,11 +186,17 @@ model_info = client.get_registered_model(MODEL_NAME)
 print(f"モデル名: {model_info.name}")
 print(f"作成日時: {model_info.creation_timestamp}")
 
+# エイリアス一覧を取得
+aliases_dict = {a.alias: a.version for a in model_info.aliases} if model_info.aliases else {}
+print(f"エイリアス: {aliases_dict}")
+
 # バージョン一覧
 versions = client.search_model_versions(f"name='{MODEL_NAME}'")
 print(f"\nバージョン数: {len(versions)}")
 for v in versions:
-    print(f"  - Version {v.version}: {v.aliases}")
+    # このバージョンに紐づくエイリアスを検索
+    version_aliases = [alias for alias, ver in aliases_dict.items() if ver == v.version]
+    print(f"  - Version {v.version}: {version_aliases if version_aliases else '(エイリアスなし)'}")
 
 # COMMAND ----------
 
