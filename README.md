@@ -16,11 +16,14 @@ Databricks Free Editionを用いた機械学習・MLOpsハンズオン教材
 ```
 ds-workshop/
 ├── README.md
-└── demos/                              # デモ用ノートブック(講師用)
-    ├── 01_ml_environment_check.py      # Databricks ML環境の確認
-    ├── 02_sklearn_pipeline.py          # scikit-learnパイプラインの構築
-    ├── 03_mlflow_tracking.py           # MLflowによる実験トラッキング
-    └── 04_model_registry.py            # UCモデルレジストリとChampion/Challengerパターン
+├── demos/                              # デモ用ノートブック(講師用)
+│   ├── 01_ml_environment_check.py      # Databricks ML環境の確認
+│   ├── 02_sklearn_pipeline.py          # scikit-learnパイプラインの構築
+│   ├── 03_mlflow_tracking.py           # MLflowによる実験トラッキング
+│   └── 04_model_registry.py            # UCモデルレジストリとChampion/Challengerパターン
+└── exercises/                          # 実践演習用ノートブック
+    ├── 01_ml_exercise.py               # 演習問題(穴埋め形式)
+    └── 01_ml_exercise_solution.py      # 模範解答
 ```
 
 ## 講義構成
@@ -36,8 +39,9 @@ ds-workshop/
 - Unity Catalog / MLflow / Model Registry
 
 ### Part 3: 実践演習 (90分)
-- scikit-learn + MLflowで機械学習ワークフロー
-- ※実習用ノートブックは別途作成予定
+- Breast Cancer Wisconsinデータセットを使用
+- 穴埋め形式で機械学習ワークフローを実装
+- `exercises/01_ml_exercise.py` を使用
 
 ## 使用方法
 
