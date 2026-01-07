@@ -69,8 +69,7 @@ from mlflow.tracking import MlflowClient
 
 # COMMAND ----------
 
-# カタログ・スキーマの設定
-# デモで作成したカタログを使用
+# カタログとスキーマの設定
 username = spark.sql("SELECT current_user()").collect()[0][0]
 clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
 
@@ -78,6 +77,10 @@ CATALOG = f"exercise_{clean_username}"
 SCHEMA = "ml"
 MODEL_NAME = f"{CATALOG}.{SCHEMA}.breast_cancer_classifier"
 PRED_TABLE = f"{CATALOG}.{SCHEMA}.breast_cancer_predictions"
+
+# カタログとスキーマを作成
+spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 
 print(f"✅ 環境セットアップ完了")
 print(f"   カタログ: {CATALOG}")
