@@ -20,8 +20,7 @@ ds-workshop/
     ├── 01_ml_environment_check.py      # Databricks ML環境の確認
     ├── 02_sklearn_pipeline.py          # scikit-learnパイプラインの構築
     ├── 03_mlflow_tracking.py           # MLflowによる実験トラッキング
-    ├── 04_model_registry.py            # モデルレジストリの操作
-    └── 05_batch_inference.py           # バッチ推論
+    └── 04_model_registry.py            # UCモデルレジストリとChampion/Challengerパターン
 ```
 
 ## 講義構成

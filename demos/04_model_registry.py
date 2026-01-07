@@ -320,9 +320,9 @@ print(f"Champion (v1):   ACC={acc:.4f}, F1={f1:.4f}, AUC={auc:.4f}")
 print(f"Challenger (v2): ACC={acc_v2:.4f}, F1={f1_v2:.4f}, AUC={auc_v2:.4f}")
 print("=" * 50)
 
-# Challengerが優れているか判定
-if auc_v2 > auc:
-    print("✅ Challenger がChampionを上回っています！")
+# Challengerが優れているか判定(同等以上なら新モデルを採用)
+if auc_v2 >= auc:
+    print("✅ Challenger がChampion以上の性能です！")
     promote = True
 else:
     print("⚠️ Champion が引き続き最良です")
