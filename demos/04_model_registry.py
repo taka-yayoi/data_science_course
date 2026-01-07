@@ -3,6 +3,27 @@
 # MAGIC # デモ4: Unity Catalogモデルレジストリ
 # MAGIC
 # MAGIC このノートブックでは、MLflowモデルをUnity Catalogに登録し、バージョン管理を行います。
+# MAGIC
+# MAGIC **重要:** サーバレスv2を使用している場合は、以下のセルでMLflowをアップグレードしてください。
+# MAGIC サーバレスv4の場合はスキップできます。
+# MAGIC
+# MAGIC 参考: [Databricks Free EditionでUnity Catalogモデルレジストリがエラーになる場合の対処法](https://qiita.com/taka_yayoi/items/6068b9bb4eb05ab5ddbd)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### (オプション) MLflowアップグレード
+# MAGIC サーバレスv2でUCモデルレジストリを使う場合に必要です。
+
+# COMMAND ----------
+
+# サーバレスv2の場合は以下のコメントを外して実行
+# %pip install --upgrade mlflow -q
+
+# COMMAND ----------
+
+# 上記を実行した場合は、このセルも実行してPython環境を再起動
+# dbutils.library.restartPython()
 
 # COMMAND ----------
 
