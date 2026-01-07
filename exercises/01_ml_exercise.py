@@ -14,7 +14,7 @@
 # MAGIC
 # MAGIC | セクション | 内容 | 目安時間 |
 # MAGIC |------------|------|----------|
-# MAGIC | 演習1 | 環境セットアップ | 5分 |
+# MAGIC | 演習1 | 環境セットアップ | 2分 |
 # MAGIC | 演習2 | データ準備とEDA | 15分 |
 # MAGIC | 演習3 | パイプライン構築とMLflow | 20分 |
 # MAGIC | 演習4 | ハイパーパラメータ比較 | 15分 |
@@ -63,7 +63,7 @@
 # MAGIC %md
 # MAGIC ## 演習1: 環境セットアップ
 # MAGIC
-# MAGIC Unity Catalog上にカタログとスキーマを作成してください。
+# MAGIC デモで作成したカタログ・スキーマを使用します。
 
 # COMMAND ----------
 
@@ -87,50 +87,20 @@ from mlflow.tracking import MlflowClient
 
 # COMMAND ----------
 
-# ユーザー名を取得（実行するだけでOK）
+# カタログ・スキーマの設定（実行するだけでOK）
+# デモで作成したカタログを使用します
 username = spark.sql("SELECT current_user()").collect()[0][0]
 clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
-print(f"ユーザー名: {clean_username}")
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 課題1-1: カタログとスキーマの定義
-# MAGIC
-# MAGIC 以下の変数を設定してください。
-# MAGIC - カタログ名: `exercise_{ユーザー名}`
-# MAGIC - スキーマ名: `ml`
-
-# COMMAND ----------
-
-# TODO: カタログ名とスキーマ名を定義
-CATALOG = ___  # ヒント: f"exercise_{clean_username}"
-SCHEMA = ___   # ヒント: "ml"
-
-# モデル名とテーブル名（上記を設定すれば自動で決まります）
+CATALOG = f"ds_workshop_{clean_username}"
+SCHEMA = "ml"
 MODEL_NAME = f"{CATALOG}.{SCHEMA}.breast_cancer_classifier"
 PRED_TABLE = f"{CATALOG}.{SCHEMA}.breast_cancer_predictions"
 
-print(f"カタログ: {CATALOG}")
-print(f"スキーマ: {SCHEMA}")
-print(f"モデル名: {MODEL_NAME}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 課題1-2: カタログとスキーマの作成
-# MAGIC
-# MAGIC SQLでカタログとスキーマを作成してください。
-
-# COMMAND ----------
-
-# TODO: カタログを作成（存在しない場合のみ）
-spark.sql(f"___")
-
-# TODO: スキーマを作成（存在しない場合のみ）
-spark.sql(f"___")
-
-print(f"✅ カタログとスキーマを作成しました")
+print(f"✅ 環境セットアップ完了")
+print(f"   カタログ: {CATALOG}")
+print(f"   スキーマ: {SCHEMA}")
+print(f"   モデル名: {MODEL_NAME}")
 
 # COMMAND ----------
 

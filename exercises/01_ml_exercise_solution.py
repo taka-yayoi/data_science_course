@@ -69,42 +69,20 @@ from mlflow.tracking import MlflowClient
 
 # COMMAND ----------
 
-# ユーザー名を取得
+# カタログ・スキーマの設定
+# デモで作成したカタログを使用
 username = spark.sql("SELECT current_user()").collect()[0][0]
 clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
-print(f"ユーザー名: {clean_username}")
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 課題1-1: カタログとスキーマの定義
-
-# COMMAND ----------
-
-# 【解答】カタログ名とスキーマ名を定義
-CATALOG = f"exercise_{clean_username}"
+CATALOG = f"ds_workshop_{clean_username}"
 SCHEMA = "ml"
-
-# モデル名とテーブル名
 MODEL_NAME = f"{CATALOG}.{SCHEMA}.breast_cancer_classifier"
 PRED_TABLE = f"{CATALOG}.{SCHEMA}.breast_cancer_predictions"
 
-print(f"カタログ: {CATALOG}")
-print(f"スキーマ: {SCHEMA}")
-print(f"モデル名: {MODEL_NAME}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 課題1-2: カタログとスキーマの作成
-
-# COMMAND ----------
-
-# 【解答】カタログとスキーマを作成
-spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
-
-print(f"✅ カタログとスキーマを作成しました")
+print(f"✅ 環境セットアップ完了")
+print(f"   カタログ: {CATALOG}")
+print(f"   スキーマ: {SCHEMA}")
+print(f"   モデル名: {MODEL_NAME}")
 
 # COMMAND ----------
 
