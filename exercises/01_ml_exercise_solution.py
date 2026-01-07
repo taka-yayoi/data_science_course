@@ -13,9 +13,22 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 演習0: MLflowアップグレード（必要な場合）
+# MAGIC ## 💡 演習のヒント
 # MAGIC
-# MAGIC サーバレスv2を使用している場合は、以下のセルのコメントを外して実行してください。
+# MAGIC ### コード補完を活用しよう
+# MAGIC 穴埋め箇所（`___`）を消して少し待つと、**オートコンプリーション**が候補を表示します。
+# MAGIC Tabキーで補完を確定できます。
+# MAGIC
+# MAGIC ### Databricks Assistantを活用しよう
+# MAGIC 右サイドバーの「Assistant」アイコンをクリックすると、AIアシスタントに質問できます。
+# MAGIC
+# MAGIC ### デモノートブックを参照
+# MAGIC `demos/` フォルダのノートブックにコード例があります。
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 演習0: MLflowアップグレード（必要な場合）
 
 # COMMAND ----------
 
@@ -31,14 +44,13 @@
 
 # MAGIC %md
 # MAGIC ## 演習1: 環境セットアップ
-# MAGIC
-# MAGIC Unity Catalog上にカタログとスキーマを作成してください。
 
 # COMMAND ----------
 
 # ライブラリのインポート
 import numpy as np
 import pandas as pd
+import plotly.express as px
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -95,30 +107,74 @@ print(f"✅ カタログとスキーマを作成しました")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 演習2: データの準備
-# MAGIC
-# MAGIC Breast Cancerデータセットを読み込み、探索します。
+# MAGIC ## 演習2: データの準備とEDA
 
 # COMMAND ----------
 
 # データの読み込み
 cancer = load_breast_cancer()
 df = pd.DataFrame(cancer.data, columns=cancer.feature_names)
-df['target'] = cancer.target  # 0=悪性, 1=良性
+df['target'] = cancer.target
+df['target_name'] = df['target'].map({0: 'malignant', 1: 'benign'})
 
 print(f"データサイズ: {df.shape}")
-print(f"ターゲット分布:\n{df['target'].value_counts()}")
+print(f"\nターゲット分布:")
+print(df['target_name'].value_counts())
 display(df.head())
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 課題2-1: データの分割
+# MAGIC ### 課題2-1: 基本統計量の確認
+
+# COMMAND ----------
+
+# 【解答】describe()で基本統計量を表示
+display(df.describe())
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 課題2-2: ターゲット分布の可視化
+
+# COMMAND ----------
+
+# 【解答】ターゲット分布を棒グラフで表示
+fig = px.histogram(
+    df,
+    x="target_name",
+    color="target_name",
+    title="ターゲット分布（悪性 vs 良性）"
+)
+fig.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 課題2-3: 特徴量の相関確認
+
+# COMMAND ----------
+
+# 主要な特徴量の散布図
+fig = px.scatter(
+    df,
+    x="mean radius",
+    y="mean texture",
+    color="target_name",
+    title="主要特徴量の散布図",
+    labels={"mean radius": "平均半径", "mean texture": "平均テクスチャ"}
+)
+fig.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 課題2-4: データの分割
 
 # COMMAND ----------
 
 # 特徴量とターゲットを分離
-X = df.drop('target', axis=1)
+X = df.drop(['target', 'target_name'], axis=1)
 y = df['target']
 
 # 【解答】train_test_splitでデータを分割
@@ -136,8 +192,6 @@ print(f"テストデータ: {len(X_test)}件")
 
 # MAGIC %md
 # MAGIC ## 演習3: パイプライン構築とMLflowトラッキング
-# MAGIC
-# MAGIC scikit-learnのパイプラインを構築し、MLflowで実験を記録します。
 
 # COMMAND ----------
 
@@ -146,7 +200,13 @@ mlflow.set_registry_uri("databricks-uc")
 EXPERIMENT_NAME = f"/Users/{username}/breast_cancer_exercise"
 mlflow.set_experiment(EXPERIMENT_NAME)
 client = MlflowClient()
-print(f"実験名: {EXPERIMENT_NAME}")
+
+# エクスペリメントへのリンクを表示
+displayHTML(f"""
+<p>✅ エクスペリメントを設定しました</p>
+<p>👉 <a href="#mlflow/experiments/{mlflow.get_experiment_by_name(EXPERIMENT_NAME).experiment_id}" target="_blank">
+MLflow エクスペリメントを開く: {EXPERIMENT_NAME}</a></p>
+""")
 
 # COMMAND ----------
 
@@ -217,8 +277,6 @@ with mlflow.start_run(run_name="LogisticRegression_C1.0") as run:
 
 # MAGIC %md
 # MAGIC ## 演習4: ハイパーパラメータ比較
-# MAGIC
-# MAGIC 異なるパラメータでモデルを学習し、結果を比較します。
 
 # COMMAND ----------
 
@@ -275,21 +333,18 @@ display(results_df.sort_values("roc_auc", ascending=False))
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### 📍 MLflow UIで確認
-# MAGIC
-# MAGIC 左メニューの「エクスペリメント」から `breast_cancer_exercise` を開き、
-# MAGIC 4つの実験結果を比較してください。
+# MLflow UIへのリンク
+experiment = mlflow.get_experiment_by_name(EXPERIMENT_NAME)
+displayHTML(f"""
+<h3>📊 MLflow UIで結果を確認</h3>
+<p>👉 <a href="#mlflow/experiments/{experiment.experiment_id}" target="_blank">
+エクスペリメントを開く: {EXPERIMENT_NAME}</a></p>
+""")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 演習5: 最良モデルをUnity Catalogに登録
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 課題5-1: 最良モデルの特定と登録
 
 # COMMAND ----------
 
@@ -341,21 +396,17 @@ if model_info.aliases:
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### 📍 カタログエクスプローラで確認
-# MAGIC
-# MAGIC カタログエクスプローラで `exercise_{ユーザー名}` > `ml` > `Models` を開き、
-# MAGIC 登録したモデルとChampionエイリアスを確認してください。
+# カタログエクスプローラへのリンク
+displayHTML(f"""
+<h3>📦 カタログエクスプローラで確認</h3>
+<p>👉 <a href="/explore/data/{CATALOG}/{SCHEMA}/models/{MODEL_NAME.split('.')[-1]}" target="_blank">
+モデルを開く: {MODEL_NAME}</a></p>
+""")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 演習6: Championモデルで推論
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 課題6-1: モデルの読み込みと推論
 
 # COMMAND ----------
 
@@ -367,11 +418,6 @@ predictions = loaded_model.predict(X)
 probabilities = loaded_model.predict_proba(X)[:, 1]
 
 print(f"✅ 予測完了: {len(predictions)}件")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 課題6-2: 推論結果をDeltaテーブルに保存
 
 # COMMAND ----------
 
@@ -396,6 +442,15 @@ print(f"✅ テーブル保存完了: {PRED_TABLE}")
 
 # COMMAND ----------
 
+# 保存したテーブルへのリンク
+displayHTML(f"""
+<h3>📊 推論結果テーブル</h3>
+<p>👉 <a href="/explore/data/{CATALOG}/{SCHEMA}/tables/{PRED_TABLE.split('.')[-1]}" target="_blank">
+テーブルを開く: {PRED_TABLE}</a></p>
+""")
+
+# COMMAND ----------
+
 # 保存したテーブルを確認
 display(spark.table(PRED_TABLE))
 
@@ -403,23 +458,108 @@ display(spark.table(PRED_TABLE))
 
 # MAGIC %md
 # MAGIC ## 演習完了！🎉
-# MAGIC
-# MAGIC おめでとうございます！以下の内容を実践しました:
-# MAGIC
-# MAGIC 1. ✅ Unity Catalogにカタログ・スキーマを作成
-# MAGIC 2. ✅ データの読み込みと分割
-# MAGIC 3. ✅ scikit-learnパイプラインの構築
-# MAGIC 4. ✅ MLflowで実験をトラッキング
-# MAGIC 5. ✅ ハイパーパラメータ比較
-# MAGIC 6. ✅ 最良モデルをUnity Catalogに登録
-# MAGIC 7. ✅ Championエイリアスを設定
-# MAGIC 8. ✅ モデルを読み込んで推論
-# MAGIC 9. ✅ 結果をDeltaテーブルに保存
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## クリーンアップ（必要に応じて実行）
+# MAGIC ## 🚀 追加課題（チャレンジ）【解答例】
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### チャレンジ1: RandomForestで実験
+
+# COMMAND ----------
+
+# 【解答例】RandomForestで実験
+with mlflow.start_run(run_name="RandomForest_n100") as run:
+    pipeline_rf = Pipeline([
+        ("model", RandomForestClassifier(n_estimators=100, random_state=42))
+    ])
+    
+    pipeline_rf.fit(X_train, y_train)
+    
+    y_pred_rf = pipeline_rf.predict(X_test)
+    y_proba_rf = pipeline_rf.predict_proba(X_test)[:, 1]
+    
+    acc_rf = accuracy_score(y_test, y_pred_rf)
+    f1_rf = f1_score(y_test, y_pred_rf)
+    auc_rf = roc_auc_score(y_test, y_proba_rf)
+    
+    mlflow.log_params({"model_type": "RandomForest", "n_estimators": 100})
+    mlflow.log_metrics({"accuracy": acc_rf, "f1_score": f1_rf, "roc_auc": auc_rf})
+    
+    signature = infer_signature(X_train, pipeline_rf.predict(X_train))
+    mlflow.sklearn.log_model(pipeline_rf, "model", signature=signature)
+    
+    run_id_rf = run.info.run_id
+    print(f"RandomForest: ACC={acc_rf:.4f}, F1={f1_rf:.4f}, AUC={auc_rf:.4f}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### チャレンジ2: 混同行列の可視化
+
+# COMMAND ----------
+
+# 【解答例】混同行列の可視化
+import plotly.figure_factory as ff
+
+cm = confusion_matrix(y_test, y_pred)
+fig = ff.create_annotated_heatmap(
+    cm,
+    x=['Predicted Malignant', 'Predicted Benign'],
+    y=['Actual Malignant', 'Actual Benign'],
+    colorscale='Blues'
+)
+fig.update_layout(title="混同行列")
+fig.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### チャレンジ3: Challengerモデルの登録と昇格
+
+# COMMAND ----------
+
+# 【解答例】RandomForestをChallengerとして登録
+model_uri_rf = f"runs:/{run_id_rf}/model"
+model_version_rf = mlflow.register_model(model_uri=model_uri_rf, name=MODEL_NAME)
+
+time.sleep(3)
+
+# Challengerエイリアスを設定
+client.set_registered_model_alias(name=MODEL_NAME, alias="Challenger", version=model_version_rf.version)
+print(f"✅ Challenger登録: v{model_version_rf.version}")
+
+# COMMAND ----------
+
+# 比較と昇格判定
+print("=" * 50)
+print("モデル比較")
+print("=" * 50)
+print(f"Champion (LogReg): AUC={best_result['roc_auc']:.4f}")
+print(f"Challenger (RF):   AUC={auc_rf:.4f}")
+print("=" * 50)
+
+if auc_rf >= best_result['roc_auc']:
+    # 旧Championのエイリアスを削除
+    client.delete_registered_model_alias(name=MODEL_NAME, alias="Champion")
+    
+    # ChallengerをChampionに昇格
+    client.set_registered_model_alias(name=MODEL_NAME, alias="Champion", version=model_version_rf.version)
+    
+    # Challengerエイリアスを削除
+    client.delete_registered_model_alias(name=MODEL_NAME, alias="Challenger")
+    
+    print(f"🎉 RandomForest (v{model_version_rf.version}) を Champion に昇格しました！")
+else:
+    print("昇格はスキップされました")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## クリーンアップ
 
 # COMMAND ----------
 

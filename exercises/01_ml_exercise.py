@@ -10,7 +10,34 @@
 # MAGIC
 # MAGIC **演習時間:** 約90分
 # MAGIC
-# MAGIC **ヒント:** 困ったらデモノートブックを参照してください。
+# MAGIC | セクション | 内容 | 目安時間 |
+# MAGIC |------------|------|----------|
+# MAGIC | 演習1 | 環境セットアップ | 5分 |
+# MAGIC | 演習2 | データ準備とEDA | 15分 |
+# MAGIC | 演習3 | パイプライン構築とMLflow | 20分 |
+# MAGIC | 演習4 | ハイパーパラメータ比較 | 15分 |
+# MAGIC | 演習5 | UCモデル登録 | 15分 |
+# MAGIC | 演習6 | 推論とテーブル保存 | 10分 |
+# MAGIC | 追加課題 | チャレンジ問題 | 余った時間 |
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 💡 演習のヒント
+# MAGIC
+# MAGIC ### コード補完を活用しよう
+# MAGIC 穴埋め箇所（`___`）を消して少し待つと、**オートコンプリーション**が候補を表示します。
+# MAGIC Tabキーで補完を確定できます。
+# MAGIC
+# MAGIC ### Databricks Assistantを活用しよう
+# MAGIC 右サイドバーの「Assistant」アイコンをクリックすると、AIアシスタントに質問できます。
+# MAGIC - 「このエラーの原因は？」
+# MAGIC - 「train_test_splitの使い方を教えて」
+# MAGIC
+# MAGIC など、困ったときに聞いてみてください。
+# MAGIC
+# MAGIC ### デモノートブックを参照
+# MAGIC `demos/` フォルダのノートブックにコード例があります。
 
 # COMMAND ----------
 
@@ -41,6 +68,7 @@
 # ライブラリのインポート（実行するだけでOK）
 import numpy as np
 import pandas as pd
+import plotly.express as px
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -105,9 +133,9 @@ print(f"✅ カタログとスキーマを作成しました")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 演習2: データの準備
+# MAGIC ## 演習2: データの準備とEDA
 # MAGIC
-# MAGIC Breast Cancerデータセットを読み込み、探索します。
+# MAGIC Breast Cancerデータセットを読み込み、探索的データ分析（EDA）を行います。
 
 # COMMAND ----------
 
@@ -115,15 +143,69 @@ print(f"✅ カタログとスキーマを作成しました")
 cancer = load_breast_cancer()
 df = pd.DataFrame(cancer.data, columns=cancer.feature_names)
 df['target'] = cancer.target  # 0=悪性, 1=良性
+df['target_name'] = df['target'].map({0: 'malignant', 1: 'benign'})
 
 print(f"データサイズ: {df.shape}")
-print(f"ターゲット分布:\n{df['target'].value_counts()}")
+print(f"\nターゲット分布:")
+print(df['target_name'].value_counts())
 display(df.head())
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 課題2-1: データの分割
+# MAGIC ### 課題2-1: 基本統計量の確認
+# MAGIC
+# MAGIC データの基本統計量を確認してください。
+
+# COMMAND ----------
+
+# TODO: describe()で基本統計量を表示
+# ヒント: df.describe()
+display(___)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 課題2-2: ターゲット分布の可視化
+# MAGIC
+# MAGIC ターゲット（悪性/良性）の分布を棒グラフで可視化してください。
+
+# COMMAND ----------
+
+# TODO: ターゲット分布を棒グラフで表示
+# ヒント: px.histogram(df, x="target_name", color="target_name", title="...")
+fig = px.histogram(
+    ___,
+    x=___,
+    color=___,
+    title="ターゲット分布（悪性 vs 良性）"
+)
+fig.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 課題2-3: 特徴量の相関確認（オプション）
+# MAGIC
+# MAGIC 主要な特徴量とターゲットの関係を散布図で確認してください。
+
+# COMMAND ----------
+
+# 主要な特徴量の散布図（実行するだけでOK）
+fig = px.scatter(
+    df,
+    x="mean radius",
+    y="mean texture",
+    color="target_name",
+    title="主要特徴量の散布図",
+    labels={"mean radius": "平均半径", "mean texture": "平均テクスチャ"}
+)
+fig.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 課題2-4: データの分割
 # MAGIC
 # MAGIC データを特徴量(X)とターゲット(y)に分割し、訓練データとテストデータに分けてください。
 # MAGIC
@@ -133,7 +215,7 @@ display(df.head())
 # COMMAND ----------
 
 # 特徴量とターゲットを分離
-X = df.drop('target', axis=1)
+X = df.drop(['target', 'target_name'], axis=1)
 y = df['target']
 
 # TODO: train_test_splitでデータを分割
@@ -161,7 +243,13 @@ mlflow.set_registry_uri("databricks-uc")
 EXPERIMENT_NAME = f"/Users/{username}/breast_cancer_exercise"
 mlflow.set_experiment(EXPERIMENT_NAME)
 client = MlflowClient()
-print(f"実験名: {EXPERIMENT_NAME}")
+
+# エクスペリメントへのリンクを表示
+displayHTML(f"""
+<p>✅ エクスペリメントを設定しました</p>
+<p>👉 <a href="#mlflow/experiments/{mlflow.get_experiment_by_name(EXPERIMENT_NAME).experiment_id}" target="_blank">
+MLflow エクスペリメントを開く: {EXPERIMENT_NAME}</a></p>
+""")
 
 # COMMAND ----------
 
@@ -170,7 +258,10 @@ print(f"実験名: {EXPERIMENT_NAME}")
 # MAGIC
 # MAGIC StandardScalerとLogisticRegressionを組み合わせたパイプラインを作成してください。
 # MAGIC
-# MAGIC - LogisticRegressionのパラメータ: C=1.0, max_iter=1000, random_state=42
+# MAGIC **LogisticRegressionのパラメータ:**
+# MAGIC - `C=1.0`: 正則化の強さ（後で詳しく説明します）
+# MAGIC - `max_iter=1000`: 最大反復回数
+# MAGIC - `random_state=42`: 乱数シード
 
 # COMMAND ----------
 
@@ -244,6 +335,21 @@ with mlflow.start_run(run_name="LogisticRegression_C1.0") as run:
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ### ロジスティック回帰のCパラメータとは？
+# MAGIC
+# MAGIC `C`は**正則化の強さの逆数**です。
+# MAGIC
+# MAGIC | Cの値 | 正則化 | 特徴 |
+# MAGIC |-------|--------|------|
+# MAGIC | 小さい（0.01） | 強い | 過学習を防ぐが、学習不足になりやすい |
+# MAGIC | 大きい（10.0） | 弱い | データに適合しやすいが、過学習しやすい |
+# MAGIC | 中間（1.0） | 中程度 | バランスが取れている（デフォルト） |
+# MAGIC
+# MAGIC 実際にCの値を変えて、精度がどう変わるか確認しましょう。
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ### 課題4-1: 複数のCの値で実験
 # MAGIC
 # MAGIC LogisticRegressionのCパラメータを変えて、複数の実験を実行してください。
@@ -303,11 +409,21 @@ display(results_df.sort_values("roc_auc", ascending=False))
 # MAGIC %md
 # MAGIC ### 📍 MLflow UIで確認
 # MAGIC
-# MAGIC 左メニューの「エクスペリメント」から `breast_cancer_exercise` を開き、
-# MAGIC 4つの実験結果を比較してください。
+# MAGIC 下のリンクからMLflow UIを開き、4つの実験結果を比較してください。
 # MAGIC
 # MAGIC - どのCの値が最も良い結果でしたか？
-# MAGIC - チャートビューでメトリクスを可視化してみましょう
+# MAGIC - 「Chart」タブでメトリクスを可視化してみましょう
+
+# COMMAND ----------
+
+# MLflow UIへのリンク
+experiment = mlflow.get_experiment_by_name(EXPERIMENT_NAME)
+displayHTML(f"""
+<h3>📊 MLflow UIで結果を確認</h3>
+<p>👉 <a href="#mlflow/experiments/{experiment.experiment_id}" target="_blank">
+エクスペリメントを開く: {EXPERIMENT_NAME}</a></p>
+<p>4つのRunを選択して「Compare」ボタンをクリックすると、メトリクスを比較できます。</p>
+""")
 
 # COMMAND ----------
 
@@ -348,6 +464,23 @@ print(f"✅ モデル登録完了: {MODEL_NAME} v{model_version.version}")
 
 # MAGIC %md
 # MAGIC ### 課題5-2: Championエイリアスの設定
+# MAGIC
+# MAGIC **エイリアスとは？**
+# MAGIC
+# MAGIC モデルのバージョン番号（v1, v2, ...）は自動で増えていきますが、
+# MAGIC 「どのバージョンが本番用か」を覚えておくのは大変です。
+# MAGIC
+# MAGIC **エイリアス**を使うと、「Champion」「Challenger」などの名前でモデルを参照できます。
+# MAGIC
+# MAGIC ```python
+# MAGIC # バージョン番号で参照（どれが本番？）
+# MAGIC model = mlflow.sklearn.load_model("models:/my_model/3")
+# MAGIC
+# MAGIC # エイリアスで参照（本番用が明確！）
+# MAGIC model = mlflow.sklearn.load_model("models:/my_model@Champion")
+# MAGIC ```
+# MAGIC
+# MAGIC モデルを更新しても、エイリアスを付け替えるだけで推論コードを変更する必要がありません。
 
 # COMMAND ----------
 
@@ -376,8 +509,23 @@ if model_info.aliases:
 # MAGIC %md
 # MAGIC ### 📍 カタログエクスプローラで確認
 # MAGIC
-# MAGIC カタログエクスプローラで `exercise_{ユーザー名}` > `ml` > `Models` を開き、
+# MAGIC 下のリンクからカタログエクスプローラを開き、
 # MAGIC 登録したモデルとChampionエイリアスを確認してください。
+
+# COMMAND ----------
+
+# カタログエクスプローラへのリンク
+displayHTML(f"""
+<h3>📦 カタログエクスプローラで確認</h3>
+<p>👉 <a href="/explore/data/{CATALOG}/{SCHEMA}/models/{MODEL_NAME.split('.')[-1]}" target="_blank">
+モデルを開く: {MODEL_NAME}</a></p>
+<p>確認ポイント:</p>
+<ul>
+<li>モデルが登録されている</li>
+<li>「Champion」エイリアスが設定されている</li>
+<li>メトリクス（accuracy, f1_score, roc_auc）が記録されている</li>
+</ul>
+""")
 
 # COMMAND ----------
 
@@ -430,6 +578,15 @@ print(f"✅ テーブル保存完了: {PRED_TABLE}")
 
 # COMMAND ----------
 
+# 保存したテーブルへのリンク
+displayHTML(f"""
+<h3>📊 推論結果テーブル</h3>
+<p>👉 <a href="/explore/data/{CATALOG}/{SCHEMA}/tables/{PRED_TABLE.split('.')[-1]}" target="_blank">
+テーブルを開く: {PRED_TABLE}</a></p>
+""")
+
+# COMMAND ----------
+
 # 保存したテーブルを確認（実行するだけでOK）
 display(spark.table(PRED_TABLE))
 
@@ -441,7 +598,7 @@ display(spark.table(PRED_TABLE))
 # MAGIC おめでとうございます！以下の内容を実践しました:
 # MAGIC
 # MAGIC 1. ✅ Unity Catalogにカタログ・スキーマを作成
-# MAGIC 2. ✅ データの読み込みと分割
+# MAGIC 2. ✅ データの読み込みとEDA
 # MAGIC 3. ✅ scikit-learnパイプラインの構築
 # MAGIC 4. ✅ MLflowで実験をトラッキング
 # MAGIC 5. ✅ ハイパーパラメータ比較
@@ -449,6 +606,80 @@ display(spark.table(PRED_TABLE))
 # MAGIC 7. ✅ Championエイリアスを設定
 # MAGIC 8. ✅ モデルを読み込んで推論
 # MAGIC 9. ✅ 結果をDeltaテーブルに保存
+# MAGIC
+# MAGIC ---
+# MAGIC
+# MAGIC **時間が余った方は、以下の追加課題に挑戦してください！**
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 🚀 追加課題（チャレンジ）
+# MAGIC
+# MAGIC 以下は任意の発展課題です。時間があれば挑戦してみてください。
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### チャレンジ1: RandomForestで実験
+# MAGIC
+# MAGIC LogisticRegressionの代わりにRandomForestClassifierを使ってモデルを作成し、
+# MAGIC 精度を比較してください。
+# MAGIC
+# MAGIC ```python
+# MAGIC from sklearn.ensemble import RandomForestClassifier
+# MAGIC
+# MAGIC # RandomForestのパイプライン（スケーリング不要）
+# MAGIC pipeline_rf = Pipeline([
+# MAGIC     ("model", RandomForestClassifier(n_estimators=100, random_state=42))
+# MAGIC ])
+# MAGIC ```
+
+# COMMAND ----------
+
+# チャレンジ1: RandomForestで実験（自分で書いてみましょう）
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### チャレンジ2: 混同行列の可視化
+# MAGIC
+# MAGIC `confusion_matrix`を使って混同行列を計算し、ヒートマップで可視化してください。
+# MAGIC
+# MAGIC ```python
+# MAGIC from sklearn.metrics import confusion_matrix
+# MAGIC import plotly.figure_factory as ff
+# MAGIC
+# MAGIC cm = confusion_matrix(y_test, y_pred)
+# MAGIC fig = ff.create_annotated_heatmap(
+# MAGIC     cm,
+# MAGIC     x=['Predicted Negative', 'Predicted Positive'],
+# MAGIC     y=['Actual Negative', 'Actual Positive'],
+# MAGIC     colorscale='Blues'
+# MAGIC )
+# MAGIC fig.show()
+# MAGIC ```
+
+# COMMAND ----------
+
+# チャレンジ2: 混同行列の可視化（自分で書いてみましょう）
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### チャレンジ3: Challengerモデルの登録と昇格
+# MAGIC
+# MAGIC 別のモデル（RandomForestなど）をChallengerとして登録し、
+# MAGIC Championより精度が良ければChampionに昇格させてください。
+# MAGIC
+# MAGIC デモノートブック `04_model_registry.py` の後半を参考にしてください。
+
+# COMMAND ----------
+
+# チャレンジ3: Challengerモデルの登録と昇格（自分で書いてみましょう）
+
 
 # COMMAND ----------
 
