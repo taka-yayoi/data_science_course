@@ -92,7 +92,7 @@ from mlflow.tracking import MlflowClient
 username = spark.sql("SELECT current_user()").collect()[0][0]
 clean_username = username.split('@')[0].replace('.', '_').replace('-', '_')
 
-CATALOG = f"ds_workshop_{clean_username}"
+CATALOG = f"exercise_{clean_username}"
 SCHEMA = "ml"
 MODEL_NAME = f"{CATALOG}.{SCHEMA}.breast_cancer_classifier"
 PRED_TABLE = f"{CATALOG}.{SCHEMA}.breast_cancer_predictions"
