@@ -492,7 +492,7 @@ if model_info.aliases:
 # カタログエクスプローラへのリンク
 displayHTML(f"""
 <h3>📦 カタログエクスプローラで確認</h3>
-<p>👉 <a href="/explore/data/{CATALOG}/{SCHEMA}/models/{MODEL_NAME.split('.')[-1]}" target="_blank">
+<p>👉 <a href="/explore/data/{CATALOG}/{SCHEMA}/{MODEL_NAME.split('.')[-1]}" target="_blank">
 モデルを開く: {MODEL_NAME}</a></p>
 <p>確認ポイント:</p>
 <ul>
@@ -556,7 +556,7 @@ print(f"✅ テーブル保存完了: {PRED_TABLE}")
 # 保存したテーブルへのリンク
 displayHTML(f"""
 <h3>📊 推論結果テーブル</h3>
-<p>👉 <a href="/explore/data/{CATALOG}/{SCHEMA}/tables/{PRED_TABLE.split('.')[-1]}" target="_blank">
+<p>👉 <a href="/explore/data/{CATALOG}/{SCHEMA}/{PRED_TABLE.split('.')[-1]}" target="_blank">
 テーブルを開く: {PRED_TABLE}</a></p>
 """)
 
