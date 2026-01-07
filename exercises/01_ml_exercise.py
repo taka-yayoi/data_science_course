@@ -6,7 +6,7 @@
 # MAGIC
 # MAGIC **データセット:** Breast Cancer Wisconsin（乳がん診断データ）
 # MAGIC - 30個の特徴量（細胞核の測定値）
-# MAGIC - 2クラス分類（悪性/良性）
+# MAGIC - 2クラス分類: 0 = malignant（悪性）、1 = benign（良性）
 # MAGIC
 # MAGIC **コンピュート:** サーバレスv4を使用してください（右の環境パネルから設定）
 # MAGIC
@@ -657,12 +657,13 @@ display(spark.table(PRED_TABLE))
 
 # MAGIC %md
 # MAGIC ## クリーンアップ（必要に応じて実行）
+# MAGIC
+# MAGIC 演習で作成したモデルとテーブルのみ削除します。
+# MAGIC カタログとスキーマはデモで作成したものなので削除しないでください。
 
 # COMMAND ----------
 
-# # モデルとテーブルの削除
+# # 演習で作成したモデルとテーブルの削除
 # client.delete_registered_model(MODEL_NAME)
 # spark.sql(f"DROP TABLE IF EXISTS {PRED_TABLE}")
-# spark.sql(f"DROP SCHEMA IF EXISTS {CATALOG}.{SCHEMA} CASCADE")
-# spark.sql(f"DROP CATALOG IF EXISTS {CATALOG} CASCADE")
 # print("クリーンアップ完了")
