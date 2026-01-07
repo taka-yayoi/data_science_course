@@ -186,11 +186,11 @@ model_info = client.get_registered_model(MODEL_NAME)
 print(f"モデル名: {model_info.name}")
 print(f"作成日時: {model_info.creation_timestamp}")
 
-# エイリアス一覧(RegisteredModelAliasオブジェクトのリスト)
+# エイリアス一覧(Databricks UCでは辞書型で返る)
 if model_info.aliases:
     print(f"\nエイリアス:")
-    for alias_info in model_info.aliases:
-        print(f"  - @{alias_info.alias} -> Version {alias_info.version}")
+    for alias, version in model_info.aliases.items():
+        print(f"  - @{alias} -> Version {version}")
 else:
     print("\nエイリアス: なし")
 
