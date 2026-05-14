@@ -23,7 +23,8 @@ ds-workshop/
 │   └── 04_model_registry.py            # UCモデルレジストリとChampion/Challengerパターン
 └── exercises/                          # 実践演習用ノートブック
     ├── 01_ml_exercise.py               # 演習問題(穴埋め形式)
-    └── 01_ml_exercise_solution.py      # 模範解答
+    ├── 01_ml_exercise_solution.py      # 模範解答
+    └── 02_mmf_serverless_mini.py       # MFFハンズオン
 ```
 
 ## 講義構成
@@ -42,6 +43,7 @@ ds-workshop/
 - Breast Cancer Wisconsinデータセットを使用
 - 穴埋め形式で機械学習ワークフローを実装
 - `exercises/01_ml_exercise.py` を使用
+- `exercises/02_mmf_serverless_mini.py` を使用
 
 ## 使用方法
 
